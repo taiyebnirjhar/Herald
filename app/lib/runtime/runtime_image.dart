@@ -11,5 +11,6 @@ class RuntimeImage {
       'https://github.com/taiyebnirjhar/Herald/releases/download/runtime-v0.0.1/debian-trixie-arm64.tar.gz';
 
   /// SHA-256 of the file at [url]. Set from the release's `.sha256` file.
-  static const sha256 = 'PENDING_RELEASE_HASH';
+  static const sha256 =
+      '4802af3f826731048ac47da5026eab2aee08b482fc42752ee57720ddb53a0b05';
 }
