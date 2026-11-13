@@ -103,7 +103,8 @@ class HermesInstaller(private val context: Context, private val runtime: ProotRu
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             "DEBIAN_FRONTEND=noninteractive",
             "/bin/sh", "-c",
-            "apt-get update && apt-get install -y --no-install-recommends curl git ca-certificates xz-utils",
+            // A stopped earlier install can leave dpkg half-done; finish that first.
+            "dpkg --configure -a || true; apt-get update && apt-get install -y --no-install-recommends curl git ca-certificates xz-utils",
         )
 
         /** The installer command, with a clean environment, run inside the guest. */
