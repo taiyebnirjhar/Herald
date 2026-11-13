@@ -24,16 +24,26 @@ class EngineChannel(
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
-            "connection" -> result.success(
-                mapOf(
-                    "host" to HermesSupervisor.HOST,
-                    "port" to Engine.GATEWAY.port,
-                    "key" to ApiKey.load(context),
-                ),
-            )
+            "connection" -> result.success(connection())
             "saveProvider" -> saveProvider(call, result)
             else -> result.notImplemented()
         }
+    }
+
+    /**
+     * Where the API server listens, and the key. The key is only handed out while the
+     * supervisor has seen Hermes answer on that port. Otherwise the key is empty, so the
+     * app never sends it to a port that might belong to another program.
+     */
+    private fun connection(): Map<String, Any> {
+        val ready = HermesSupervisor.activeEngine == Engine.GATEWAY &&
+            HermesSupervisor.phase == HermesSupervisor.Companion.Phase.READY
+        return mapOf(
+            "host" to HermesSupervisor.HOST,
+            "port" to ApiKey.port(context),
+            "ready" to ready,
+            "key" to if (ready) ApiKey.load(context) else "",
+        )
     }
 
     /** Checks the input, then saves it inside the Linux base on a background thread. */

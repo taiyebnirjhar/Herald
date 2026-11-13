@@ -68,8 +68,14 @@ object JobRunPoller {
 
     /** One check: fetch the jobs, decide what is new, save the state, then announce. */
     internal fun checkOnce(context: Context): Int {
+        // Ask only while Android has confirmed that Hermes answers on the gateway. Otherwise send nothing.
+        if (HermesSupervisor.activeEngine != Engine.GATEWAY ||
+            HermesSupervisor.phase != HermesSupervisor.Companion.Phase.READY
+        ) {
+            return 0
+        }
         val key = ApiKey.load(context)
-        val body = fetchJobs(Engine.GATEWAY.port, key) ?: return 0
+        val body = fetchJobs(ApiKey.port(context), key) ?: return 0
         val jobs = parseJobs(body)
         val store = JobRunStore(context)
         val decision = JobRunTracker.decide(jobs) { store.get(it) }

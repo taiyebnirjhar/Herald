@@ -98,6 +98,33 @@ void main() {
     });
   });
 
+  group('safety', () {
+    test('no key means nothing is sent at all', () async {
+      var sent = 0;
+      final client = MockClient.streaming((_, _) async {
+        sent++;
+        return http.StreamedResponse(Stream.value(utf8.encode('data: [DONE]\n')), 200);
+      });
+      final api = HermesApi(port: 8642, apiKey: '', client: client);
+
+      await expectLater(
+        api.reply(const [ChatTurn(role: 'user', content: 'secret question')]).toList(),
+        throwsA(isA<HermesApiException>().having((e) => e.message, 'message', contains("isn't running"))),
+      );
+      expect(sent, 0);
+    });
+
+    test('a finish_reason of error is shown as an error, not an empty reply', () async {
+      const sse = 'data: {"choices":[{"delta":{},"finish_reason":"error"}]}\n\n'
+          'data: [DONE]\n';
+
+      await expectLater(
+        HermesApi.parseDeltas(Stream.value(utf8.encode(sse))).toList(),
+        throwsA(isA<HermesApiException>().having((e) => e.message, 'message', contains('stopped with an error'))),
+      );
+    });
+  });
+
   group('isUp', () {
     test('true when the health check answers 200', () async {
       final client = MockClient((request) async {

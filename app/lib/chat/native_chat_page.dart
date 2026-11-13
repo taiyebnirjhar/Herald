@@ -87,26 +87,47 @@ class _NativeChatPageState extends State<NativeChatPage> {
 
   HermesApi _defaultApi(EngineAddress a) => HermesApi(port: a.port, apiKey: a.key);
 
+  /// Reads the address from Android and keeps one client for it. The key is empty until
+  /// Android has seen Hermes answer, so nothing is sent to a port that is not confirmed.
+  Future<(EngineAddress, HermesApi)> _readAddress() async {
+    final address = await (widget.connection ?? MethodChannelEngineConnection()).address();
+    var api = _api;
+    if (api == null || api.port != address.port || api.apiKey != address.key) {
+      api?.close();
+      api = (widget.createApi ?? _defaultApi)(address);
+      _api = api;
+    }
+    return (address, api);
+  }
+
+  /// True when Android says the key is ready and Hermes answers its health check.
+  Future<bool> _probeReady() async {
+    try {
+      final pair = await _readAddress();
+      return pair.$1.key.isNotEmpty && await pair.$2.isUp();
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _connect() async {
     setState(() {
       _status = _Status.checking;
       _problem = '';
     });
     try {
-      final address = await (widget.connection ?? MethodChannelEngineConnection()).address();
-      _api?.close();
-      final api = (widget.createApi ?? _defaultApi)(address);
-      _api = api;
-      final up = await api.isUp();
-      if (!mounted) return;
-      setState(() => _status = up ? _Status.ready : _Status.notRunning);
+      await _readAddress();
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _status = _Status.failed;
         _problem = "Herald couldn't read its connection details. Try again.";
       });
+      return;
     }
+    final up = await _probeReady();
+    if (!mounted) return;
+    setState(() => _status = up ? _Status.ready : _Status.notRunning);
   }
 
   Future<void> _startHermes() async {
@@ -124,18 +145,24 @@ class _NativeChatPageState extends State<NativeChatPage> {
     }
     // Give the server a little time to answer.
     for (var i = 0; i < 15 && mounted; i++) {
-      if (await (_api?.isUp() ?? Future.value(false))) break;
+      if (await _probeReady()) break;
       await Future<void>.delayed(const Duration(seconds: 2));
     }
     if (!mounted) return;
-    final up = await (_api?.isUp() ?? Future.value(false));
+    final up = await _probeReady();
     setState(() => _status = up ? _Status.ready : _Status.notRunning);
   }
 
-  void _send([String? override]) {
+  Future<void> _send([String? override]) async {
     final text = (override ?? _input.text).trim();
-    final api = _api;
-    if (text.isEmpty || _busy || api == null || _status != _Status.ready) return;
+    if (text.isEmpty || _busy || _status != _Status.ready) return;
+    final pair = await _readAddress();
+    if (!mounted) return;
+    if (pair.$1.key.isEmpty) {
+      setState(() => _status = _Status.notRunning);
+      return;
+    }
+    final api = pair.$2;
     _input.clear();
 
     final turns = [

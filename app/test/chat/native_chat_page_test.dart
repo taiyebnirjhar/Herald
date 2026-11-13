@@ -9,13 +9,16 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 class _FakeConnection implements EngineConnection {
-  _FakeConnection({this.fail = false});
+  _FakeConnection({this.fail = false, this.key = 'key-0123456789abcdef'});
   final bool fail;
+
+  /// Empty means Android has not confirmed that Hermes is running.
+  final String key;
 
   @override
   Future<EngineAddress> address() async {
     if (fail) throw StateError('no connection details');
-    return const EngineAddress(port: 8642, key: 'key-0123456789abcdef');
+    return EngineAddress(port: 8642, key: key);
   }
 }
 
@@ -146,6 +149,24 @@ void main() {
 
     expect(started, 1);
     expect(find.text('Hermes is not running.'), findsNothing);
+  });
+
+  testWidgets('no confirmed key: the banner shows and nothing is sent', (tester) async {
+    var posts = 0;
+    await _open(
+      tester,
+      connection: _FakeConnection(key: ''),
+      createApi: _server(
+        healthy: true,
+        chat: (_) async {
+          posts++;
+          return _text(_replyOk, 200);
+        },
+      ),
+    );
+
+    expect(find.text('Hermes is not running.'), findsOneWidget);
+    expect(posts, 0);
   });
 
   testWidgets('when the connection details cannot be read: plain message and Try again', (tester) async {

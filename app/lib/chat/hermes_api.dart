@@ -55,6 +55,10 @@ class HermesApi {
 
   /// Streams the reply to [turns], piece by piece. Throws [HermesApiException] on a problem.
   Stream<String> reply(List<ChatTurn> turns) async* {
+    // No key means Hermes is not confirmed running. Send nothing in that case.
+    if (apiKey.isEmpty) {
+      throw const HermesApiException("Hermes isn't running. Start it first.");
+    }
     final request = http.Request('POST', _uri('/v1/chat/completions'))
       ..headers.addAll({
         'Authorization': 'Bearer $apiKey',
@@ -93,6 +97,9 @@ class HermesApi {
       final choices = event['choices'];
       if (choices is! List || choices.isEmpty) continue;
       final first = choices.first;
+      if (first is Map && first['finish_reason'] == 'error') {
+        throw const HermesApiException('Hermes stopped with an error. Try again.');
+      }
       final delta = first is Map ? first['delta'] : null;
       final piece = delta is Map ? delta['content'] : null;
       if (piece is String && piece.isNotEmpty) yield piece;
