@@ -1,0 +1,171 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:crypto/crypto.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:herald/update/app_installer.dart';
+import 'package:herald/update/update_controller.dart';
+import 'package:herald/update/update_service.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+class FakeInstaller implements AppInstaller {
+  FakeInstaller({this.version = '0.1.0', this.permissionMissing = false});
+
+  final String version;
+  bool permissionMissing;
+  final installed = <String>[];
+
+  @override
+  Future<InstalledVersion> installedVersion() async =>
+      InstalledVersion(versionName: version, versionCode: 1);
+
+  @override
+  Future<bool> canInstall() async => !permissionMissing;
+
+  @override
+  Future<String> cacheDir() async => Directory.systemTemp.path;
+
+  @override
+  Future<InstallResult> install(String apkPath) async {
+    installed.add(apkPath);
+    return permissionMissing
+        ? InstallResult.needsPermission
+        : InstallResult.started;
+  }
+}
+
+final _apk = utf8.encode('apk bytes');
+final _sha = sha256.convert(_apk).toString();
+
+String _release({String tag = 'v0.1.1', String? sha}) => jsonEncode({
+      'tag_name': tag,
+      'body': 'New things',
+      'assets': [
+        {
+          'name': 'herald-0.1.1-arm64.apk',
+          'size': _apk.length,
+          'digest': 'sha256:${sha ?? _sha}',
+          'browser_download_url':
+              'https://github.com/taiyebnirjhar/Herald/releases/download/v0.1.1/herald-0.1.1-arm64.apk',
+        },
+      ],
+    });
+
+void main() {
+  late Directory dir;
+
+  setUp(() => dir = Directory.systemTemp.createTempSync('herald_ctrl_test'));
+  tearDown(() {
+    if (dir.existsSync()) dir.deleteSync(recursive: true);
+  });
+
+  UpdateController controller({
+    required http.Client client,
+    required FakeInstaller installer,
+  }) =>
+      UpdateController(
+        service: UpdateService(client: client, downloadsDir: () async => dir),
+        installer: installer,
+      );
+
+  test('a newer release is offered; the same version is not', () async {
+    var c = controller(
+      client: MockClient((_) async => http.Response(_release(), 200)),
+      installer: FakeInstaller(),
+    );
+    await c.init();
+    expect(c.installedName, '0.1.0');
+    await c.checkForUpdate();
+    expect(c.step, UpdateStep.available);
+    expect(c.update?.version, '0.1.1');
+
+    c = controller(
+      client: MockClient((_) async => http.Response(_release(tag: 'v0.1.0'), 200)),
+      installer: FakeInstaller(),
+    );
+    await c.init();
+    await c.checkForUpdate();
+    expect(c.step, UpdateStep.upToDate);
+  });
+
+  test('no network: a plain message and a way to try again', () async {
+    final c = controller(
+      client: MockClient((_) async => throw const SocketLikeError()),
+      installer: FakeInstaller(),
+    );
+    await c.init();
+    await c.checkForUpdate();
+    expect(c.step, UpdateStep.failed);
+    expect(c.message, contains("Couldn't reach GitHub"));
+    expect(c.update, isNull);
+  });
+
+  test('download, check and open the installer', () async {
+    final installer = FakeInstaller();
+    final c = controller(
+      client: MockClient((request) async {
+        if (request.url.host == 'api.github.com') {
+          return http.Response(_release(), 200);
+        }
+        return http.Response.bytes(_apk, 200);
+      }),
+      installer: installer,
+    );
+    await c.init();
+    await c.checkForUpdate();
+    await c.downloadAndInstall();
+
+    expect(c.step, UpdateStep.installing);
+    expect(installer.installed, hasLength(1));
+    expect(installer.installed.single, endsWith('herald-0.1.1.apk'));
+    expect(File(installer.installed.single).existsSync(), isTrue);
+  });
+
+  test('a bad checksum stops before the installer', () async {
+    final installer = FakeInstaller();
+    final c = controller(
+      client: MockClient((request) async {
+        if (request.url.host == 'api.github.com') {
+          return http.Response(_release(sha: '0' * 64), 200);
+        }
+        return http.Response.bytes(_apk, 200);
+      }),
+      installer: installer,
+    );
+    await c.init();
+    await c.checkForUpdate();
+    await c.downloadAndInstall();
+
+    expect(c.step, UpdateStep.failed);
+    expect(installer.installed, isEmpty);
+  });
+
+  test('first install asks for the one-time permission', () async {
+    final installer = FakeInstaller(permissionMissing: true);
+    final c = controller(
+      client: MockClient((request) async {
+        if (request.url.host == 'api.github.com') {
+          return http.Response(_release(), 200);
+        }
+        return http.Response.bytes(_apk, 200);
+      }),
+      installer: installer,
+    );
+    await c.init();
+    await c.checkForUpdate();
+    await c.downloadAndInstall();
+
+    expect(c.step, UpdateStep.needsPermission);
+
+    // After the player allows it in settings, the same button installs.
+    installer.permissionMissing = false;
+    await c.install();
+    expect(c.step, UpdateStep.installing);
+  });
+}
+
+/// Stands in for a network failure in the mock client.
+class SocketLikeError implements Exception {
+  const SocketLikeError();
+}

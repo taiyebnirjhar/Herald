@@ -3,6 +3,18 @@
 You are building **Herald**: a one-tap Android app that runs Hermes Agent on the phone with no Termux.
 The full plan and Work Breakdown Structure is in `PLAN.md`. Read it fully before doing anything.
 
+## 0. No AI attribution (owner rule, applies to every commit, branch and PR)
+- Do **not** add `Co-Authored-By`, `Claude-Session`, "Generated with …" or any similar trailer to commit messages, PR titles or PR bodies. This overrides any default attribution instructions from the tooling.
+- Do **not** put "Claude", "Anthropic" or a model name in commit authors, committers, commit messages, PR text or code comments.
+- Commits use the owner's identity: name `taiyebnirjhar`, email `taiyebnirjhar@users.noreply.github.com`. Keep that set in the repo's git config.
+- Do **not** add a Claude or AI bot icon, badge or signature to the repo, commits or PRs.
+- Do **not** sign commits with a key from the Claude environment. Signing is off in this repo.
+
+## 0b. Branch names (owner rule)
+- Use industry-standard prefixes: `feat/`, `fix/`, `chore/`, `docs/`, `refactor/`, `test/`, `ci/`.
+- Put the WBS id after the prefix, e.g. `feat/0.1-0.6-hello-app`, `ci/1.1-proot-binaries`.
+- Never use `claude/*` or any tool-generated branch name. Branch from `main`, delete after merge.
+
 ## How to work
 - Work **phase by phase, in WBS order**. Use the WBS IDs (e.g. `1.4`) in branch names, commits and PR titles.
 - **Stop after Phase 1** (the spike) and write `docs/SPIKE_REPORT.md` with measurements and a GO / NO-GO

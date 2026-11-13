@@ -1,0 +1,28 @@
+# Flutter / Dart
+app/.dart_tool/
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+
+# Android / Gradle
+app/android/.gradle/
+app/android/local.properties
+app/android/build/
+app/android/app/build/
+app/.idea/
+app/*.iml
+app/android/*.iml
+
+# Signing keys and secrets: NEVER commit these
+app/android/key.properties
+*.jks
+*.keystore
+*.p12
+*.b64
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
