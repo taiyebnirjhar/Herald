@@ -5,7 +5,7 @@ name: App (APK)
 
 on:
   push:
-    branches: [main, "feat/**", "fix/**", "chore/**", "docs/**"]
+    branches: [main, "feat/**", "fix/**", "chore/**", "docs/**", "test/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -56,6 +56,10 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      - name: Kotlin unit tests
+        working-directory: app/android
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
 
       - name: Write release signing key (from secrets, never committed)
         env:
