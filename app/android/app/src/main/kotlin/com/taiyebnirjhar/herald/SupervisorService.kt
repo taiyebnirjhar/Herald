@@ -32,11 +32,14 @@ class SupervisorService : Service() {
             getSystemService(NotificationManager::class.java)
                 .notify(NOTIFICATION_ID, notification(HermesSupervisor.message))
             if (phase == HermesSupervisor.Companion.Phase.STOPPED || phase == HermesSupervisor.Companion.Phase.GAVE_UP) {
+                JobRunPoller.stop()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
         }
         HermesSupervisor(this, ProotRuntime(this)).start()
+        // Announces finished scheduled-job runs while Hermes runs (WBS 0.3.4).
+        JobRunPoller.start(this)
         return START_NOT_STICKY
     }
 

@@ -3,7 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'chat/engine_connection.dart';
 import 'chat/native_chat_page.dart';
+import 'notify/job_run_watcher.dart';
+import 'notify/job_runs_channel.dart';
 import 'setup/setup_page.dart';
 import 'runtime/runtime_channel.dart';
 import 'settings/app_settings.dart';
@@ -32,7 +35,19 @@ Future<void> main() async {
     ),
     installer: installer,
   );
-  runApp(HeraldApp(updates: updates, store: store, showWelcome: showWelcome));
+  // Announces finished scheduled-job runs while the app is open (WBS 0.3.4).
+  final runBridge = MethodChannelRunBridge();
+  final jobRunWatcher = JobRunWatcher(
+    jobs: HermesJobListSource(connection: MethodChannelEngineConnection()),
+    state: runBridge,
+    notifier: runBridge,
+  );
+  runApp(HeraldApp(
+    updates: updates,
+    store: store,
+    showWelcome: showWelcome,
+    jobRunWatcher: jobRunWatcher,
+  ));
 }
 
 /// Palette taken from the light, glassy chat-bot UI reference (lavender + lime).
@@ -52,6 +67,7 @@ class HeraldApp extends StatelessWidget {
     required this.updates,
     required this.store,
     this.showWelcome = false,
+    this.jobRunWatcher,
   });
 
   final UpdateController updates;
@@ -61,6 +77,9 @@ class HeraldApp extends StatelessWidget {
 
   /// True on first launch: the welcome flow comes before the home screen.
   final bool showWelcome;
+
+  /// Announces finished scheduled-job runs while the app is open. Null in tests.
+  final JobRunWatcher? jobRunWatcher;
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +98,10 @@ class HeraldApp extends StatelessWidget {
       home: showWelcome
           ? WelcomeFlow(welcome: WelcomeStore(store), homeBuilder: (_) => home)
           : home,
+      builder: (context, child) => RunWatchHost(
+        watcher: jobRunWatcher,
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 }

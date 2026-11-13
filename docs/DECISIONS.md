@@ -83,3 +83,25 @@ Each entry: date, decision, reason. Plan-level decisions D1–D7 are in PLAN.md 
   Owner to report which screen opens on the phone; the plain steps on the screen cover the rest.
 - `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` is restricted on Google Play. Herald is installed from GitHub
   Releases, not Play, so this does not apply to v1.
+
+## Job result notifications (WBS 0.3.4)
+
+- A finished scheduled-job run is announced once. Herald reads `GET /api/jobs` (`include_disabled=true`)
+  and looks at each job's `latest_execution` (Hermes `cron/jobs.py` `list_jobs`, `cron/executions.py`).
+  A run is finished when its status is `completed`, `failed` or `unknown`.
+- Checks run every 60 seconds. While the app is open, the Dart side checks (`lib/notify/`). While the app is
+  closed and Hermes runs, the Kotlin poller checks (`JobRunPoller.kt`). The app's screen decides which one.
+- One saved value per job holds the last announced run id. Both sides read and write it in Herald's own
+  SharedPreferences (`job_runs`), so a run is never announced twice. The Dart side reaches it through the
+  `herald/notify` channel. (shared_preferences 2.5 keeps data in DataStore on Android, so the two sides do not
+  share that store.)
+- The first look at a job is silent, so installing the app does not announce old runs. A run still going at
+  that first look is announced when it finishes.
+- Hermes gives a job's name from its prompt when the job has no name. Herald replaces such a name with
+  "Scheduled job", so no prompt text reaches a notification.
+- Known gap: only the newest run of a job is visible. If one job finishes two runs between two checks, the
+  earlier one is not announced. Jobs are normally spaced far enough apart that this does not happen.
+- Known gap: "unknown" means Hermes lost track of the run (for example after a crash). It is announced as
+  "ended unclearly", not as a failure.
+- Android 13 and later: Herald targets SDK 28 (D2), so Android shows no permission question for notifications.
+  The owner must turn notifications on for Herald in Android settings, or nothing is shown.
