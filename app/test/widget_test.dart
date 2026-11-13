@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -21,10 +20,14 @@ class _NoopInstaller implements AppInstaller {
   Future<String> cacheDir() async => Directory.systemTemp.path;
 }
 
-UpdateController _controller() => UpdateController(
+/// GitHub's latest-release redirect pointing at [tag]; no release when null.
+UpdateController _controller({String? tag}) => UpdateController(
       service: UpdateService(
-        // No release yet: the check is quiet and the screen says "newest".
-        client: MockClient((_) async => http.Response('', 404)),
+        client: MockClient((_) async => tag == null
+            ? http.Response('', 404)
+            : http.Response('', 302, headers: {
+                'location': 'https://github.com/taiyebnirjhar/Herald/releases/tag/$tag',
+              })),
         downloadsDir: () async => Directory.systemTemp,
       ),
       installer: _NoopInstaller(),
@@ -41,26 +44,7 @@ void main() {
   });
 
   testWidgets('a newer release shows Update now', (tester) async {
-    final controller = UpdateController(
-      service: UpdateService(
-        client: MockClient((_) async => http.Response(jsonEncode({
-              'tag_name': 'v0.2.0',
-              'body': 'New',
-              'assets': [
-                {
-                  'name': 'herald-0.2.0-arm64.apk',
-                  'size': 3,
-                  'digest': 'sha256:${'a' * 64}',
-                  'browser_download_url':
-                      'https://github.com/taiyebnirjhar/Herald/releases/download/v0.2.0/herald-0.2.0-arm64.apk',
-                },
-              ],
-            }), 200)),
-        downloadsDir: () async => Directory.systemTemp,
-      ),
-      installer: _NoopInstaller(),
-    );
-    await tester.pumpWidget(HeraldApp(updates: controller));
+    await tester.pumpWidget(HeraldApp(updates: _controller(tag: 'v0.2.0')));
     await tester.pumpAndSettle();
 
     expect(find.text('Update now'), findsOneWidget);

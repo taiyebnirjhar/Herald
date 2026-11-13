@@ -111,14 +111,21 @@ jobs:
           echo "$BADGING" | grep -q "targetSdkVersion:'28'" || { echo "::error::targetSdk is not 28"; exit 1; }
           echo "$BADGING" | grep -q "minSdkVersion:'29'" || { echo "::error::minSdk is not 29"; exit 1; }
           echo "$BADGING" | grep -q "native-code: 'arm64-v8a'" || { echo "::error::native code is not arm64-v8a only"; exit 1; }
-          cp "$APK" "$RUNNER_TEMP/herald-${{ steps.version.outputs.name }}-arm64.apk"
-          echo "APK_PATH=$RUNNER_TEMP/herald-${{ steps.version.outputs.name }}-arm64.apk" >> "$GITHUB_ENV"
+          APK_NAME="herald-${{ steps.version.outputs.name }}-arm64.apk"
+          cp "$APK" "$RUNNER_TEMP/$APK_NAME"
+          # Checksum next to the APK: the app checks its download against it (docs/DECISIONS.md, 11.3).
+          (cd "$RUNNER_TEMP" && sha256sum "$APK_NAME" > "$APK_NAME.sha256")
+          cat "$RUNNER_TEMP/$APK_NAME.sha256"
+          echo "APK_PATH=$RUNNER_TEMP/$APK_NAME" >> "$GITHUB_ENV"
+          echo "SHA_PATH=$RUNNER_TEMP/$APK_NAME.sha256" >> "$GITHUB_ENV"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: herald-apk-${{ steps.version.outputs.name }}-run${{ github.run_number }}
-          path: ${{ env.APK_PATH }}
+          path: |
+            ${{ env.APK_PATH }}
+            ${{ env.SHA_PATH }}
           retention-days: 30
 
   release:
@@ -140,6 +147,8 @@ jobs:
         with:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
-          files: release/*.apk
+          files: |
+            release/*.apk
+            release/*.sha256
           generate_release_notes: true
           fail_on_unmatched_files: true

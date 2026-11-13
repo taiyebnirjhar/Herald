@@ -38,19 +38,18 @@ class FakeInstaller implements AppInstaller {
 final _apk = utf8.encode('apk bytes');
 final _sha = sha256.convert(_apk).toString();
 
-String _release({String tag = 'v0.1.1', String? sha}) => jsonEncode({
-      'tag_name': tag,
-      'body': 'New things',
-      'assets': [
-        {
-          'name': 'herald-0.1.1-arm64.apk',
-          'size': _apk.length,
-          'digest': 'sha256:${sha ?? _sha}',
-          'browser_download_url':
-              'https://github.com/taiyebnirjhar/Herald/releases/download/v0.1.1/herald-0.1.1-arm64.apk',
-        },
-      ],
+/// GitHub's pages: the latest-release redirect, the checksum file and the APK.
+http.Response _github(http.Request r, {String tag = 'v0.1.1', String? sha}) {
+  if (r.url.path == '/taiyebnirjhar/Herald/releases/latest') {
+    return http.Response('', 302, headers: {
+      'location': 'https://github.com/taiyebnirjhar/Herald/releases/tag/$tag',
     });
+  }
+  if (r.url.path.endsWith('.sha256')) {
+    return http.Response('${sha ?? _sha}  herald-0.1.1-arm64.apk\n', 200);
+  }
+  return http.Response.bytes(_apk, 200);
+}
 
 void main() {
   late Directory dir;
@@ -71,7 +70,7 @@ void main() {
 
   test('a newer release is offered; the same version is not', () async {
     var c = controller(
-      client: MockClient((_) async => http.Response(_release(), 200)),
+      client: MockClient((r) async => _github(r)),
       installer: FakeInstaller(),
     );
     await c.init();
@@ -81,7 +80,7 @@ void main() {
     expect(c.update?.version, '0.1.1');
 
     c = controller(
-      client: MockClient((_) async => http.Response(_release(tag: 'v0.1.0'), 200)),
+      client: MockClient((r) async => _github(r, tag: 'v0.1.0')),
       installer: FakeInstaller(),
     );
     await c.init();
@@ -105,10 +104,7 @@ void main() {
     final installer = FakeInstaller();
     final c = controller(
       client: MockClient((request) async {
-        if (request.url.host == 'api.github.com') {
-          return http.Response(_release(), 200);
-        }
-        return http.Response.bytes(_apk, 200);
+        return _github(request);
       }),
       installer: installer,
     );
@@ -126,10 +122,7 @@ void main() {
     final installer = FakeInstaller();
     final c = controller(
       client: MockClient((request) async {
-        if (request.url.host == 'api.github.com') {
-          return http.Response(_release(sha: '0' * 64), 200);
-        }
-        return http.Response.bytes(_apk, 200);
+        return _github(request, sha: '0' * 64);
       }),
       installer: installer,
     );
@@ -145,10 +138,7 @@ void main() {
     final installer = FakeInstaller(permissionMissing: true);
     final c = controller(
       client: MockClient((request) async {
-        if (request.url.host == 'api.github.com') {
-          return http.Response(_release(), 200);
-        }
-        return http.Response.bytes(_apk, 200);
+        return _github(request);
       }),
       installer: installer,
     );
