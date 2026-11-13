@@ -29,3 +29,6 @@ Thumbs.db
 
 # Linux base image: fetched by tools/fetch-runtime.sh or CI; never committed (52 MB).
 app/android/app/src/main/assets/runtime/
+
+# Sub-agent worktrees (local only, never committed)
+.claude/worktrees/
