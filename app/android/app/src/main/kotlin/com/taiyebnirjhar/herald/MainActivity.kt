@@ -7,5 +7,6 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         UpdateChannel(applicationContext).register(flutterEngine)
+        RuntimeChannel(ProotRuntime(applicationContext)).register(flutterEngine)
     }
 }

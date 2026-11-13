@@ -15,6 +15,8 @@ class UpdateException implements Exception {
 }
 
 /// Finds the newest Herald release and downloads its APK.
+///
+/// Uses only github.com pages (not the API), so there is no per-address limit.
 class UpdateService {
   UpdateService({
     http.Client? client,
@@ -31,38 +33,41 @@ class UpdateService {
   /// the folder the FileProvider shares with Android's installer.
   final Future<Directory> Function() downloadsDir;
 
-  Uri get _latestUrl =>
-      Uri.https('api.github.com', '/repos/$owner/$repo/releases/latest');
+  Uri get _latestUrl => Uri.https('github.com', '/$owner/$repo/releases/latest');
 
-  /// The newest release that is a usable APK, or null when there is none.
+  /// The newest release, or null when there is none yet.
   /// Throws [UpdateException] when GitHub can't be reached.
   Future<AppUpdate?> latestRelease() async {
-    final http.Response response;
+    final http.StreamedResponse response;
     try {
-      response = await _client.get(
-        _latestUrl,
-        headers: const {
-          'Accept': 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-          'User-Agent': 'Herald-app',
-        },
-      ).timeout(const Duration(seconds: 15));
+      final request = http.Request('GET', _latestUrl)
+        ..followRedirects = false
+        ..headers['User-Agent'] = 'Herald-app';
+      response = await _client.send(request).timeout(const Duration(seconds: 15));
     } catch (_) {
       throw const UpdateException(
         "Couldn't reach GitHub. Check the internet connection and try again.",
       );
     }
+    await response.stream.drain<void>();
+
     if (response.statusCode == 404) return null; // no release yet
-    if (response.statusCode != 200) {
-      throw UpdateException(
-        'GitHub answered ${response.statusCode}. Try again later.',
-      );
+    if (response.statusCode >= 300 && response.statusCode < 400) {
+      // GitHub sends the newest tag in the redirect's Location header.
+      final location = response.headers['location'];
+      final tag = location == null ? null : AppUpdate.tagFromLocation(location);
+      if (tag == null) {
+        throw const UpdateException("Couldn't read the newest version from GitHub.");
+      }
+      return AppUpdate.fromTag(owner: owner, repo: repo, tag: tag);
     }
-    return AppUpdate.fromReleaseJson(utf8.decode(response.bodyBytes));
+    throw UpdateException(
+      'GitHub answered ${response.statusCode}. Try again later.',
+    );
   }
 
   /// Downloads [update] into the downloads folder, reporting progress from
-  /// 0.0 to 1.0. The file is checked against the SHA-256 from GitHub; a file
+  /// 0.0 to 1.0. The file must match the SHA-256 in its `.sha256` file; a file
   /// that doesn't match is deleted and an [UpdateException] is thrown.
   Future<File> download(
     AppUpdate update, {
@@ -70,6 +75,8 @@ class UpdateService {
   }) async {
     final dir = await downloadsDir();
     await _clearOldDownloads(dir, keep: update.version);
+    final expected = await _expectedSha256(update);
+
     final file = File('${dir.path}/herald-${update.version}.apk');
     final partial = File('${file.path}.part');
     if (await partial.exists()) await partial.delete();
@@ -90,13 +97,16 @@ class UpdateService {
       );
     }
 
+    final total = response.contentLength ?? -1;
     var received = 0;
     final sink = partial.openWrite();
     try {
       await for (final chunk in response.stream) {
         sink.add(chunk);
         received += chunk.length;
-        onProgress?.call((received / update.apkSize).clamp(0.0, 1.0));
+        if (total > 0) {
+          onProgress?.call((received / total).clamp(0.0, 1.0));
+        }
       }
     } catch (_) {
       await sink.close();
@@ -107,15 +117,13 @@ class UpdateService {
     }
     await sink.close();
 
-    if (received != update.apkSize) {
+    if (total > 0 && received != total) {
       await partial.delete();
-      throw const UpdateException(
-        'The download was incomplete. Try again.',
-      );
+      throw const UpdateException('The download was incomplete. Try again.');
     }
 
     final digest = await sha256.bind(partial.openRead()).first;
-    if (digest.toString() != update.sha256) {
+    if (digest.toString() != expected) {
       await partial.delete();
       throw const UpdateException(
         "The file didn't pass the safety check, so it was not installed. Try again.",
@@ -124,7 +132,34 @@ class UpdateService {
 
     if (await file.exists()) await file.delete();
     await partial.rename(file.path);
+    onProgress?.call(1.0);
     return file;
+  }
+
+  Future<String> _expectedSha256(AppUpdate update) async {
+    final http.Response r;
+    try {
+      r = await _client
+          .get(Uri.parse(update.sha256Url), headers: const {'User-Agent': 'Herald-app'})
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      throw const UpdateException(
+        "Couldn't reach GitHub for the checksum. Check the connection and try again.",
+      );
+    }
+    if (r.statusCode == 404) {
+      throw const UpdateException(
+        "This update has no checksum file, so it can't be checked. Install it from the Releases page.",
+      );
+    }
+    if (r.statusCode != 200) {
+      throw UpdateException('GitHub answered ${r.statusCode} for the checksum.');
+    }
+    final hash = AppUpdate.sha256FromFile(utf8.decode(r.bodyBytes));
+    if (hash == null) {
+      throw const UpdateException('The checksum file is not in the right format.');
+    }
+    return hash;
   }
 
   Future<void> _clearOldDownloads(Directory dir, {required String keep}) async {

@@ -41,7 +41,7 @@ You install from GitHub Releases. You do not need a computer.
 - To publish a release: on GitHub open **Actions → App (APK) → Run workflow**, choose the branch, type the tag
   (for example `v0.1.0`) in **release_tag**, and run it. The workflow creates the tag and the GitHub Release with the signed APK.
 - Pushing a tag like `v0.1.0` also publishes a release.
-- The app finds new releases on GitHub itself (the newest release that has an APK). Its download is checked against the SHA-256 that GitHub publishes for that APK before Android installs it.
+- The app reads the newest release from its GitHub release page. Each release has a `.sha256` file next to its APK. The download must match it before Android installs it.
 
 ## Signing key (one-time setup, required for any release)
 

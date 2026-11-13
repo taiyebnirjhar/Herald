@@ -90,8 +90,7 @@ class UpdateStatusCard extends StatelessWidget {
         return 'You have the newest version.';
       case UpdateStep.available:
         final u = c.update!;
-        return 'Version ${u.version} is ready.'
-            '${u.notes.isEmpty ? '' : '\n\n${u.notes}'}\n\nYour data stays.';
+        return 'Version ${u.version} is ready.\n\nYour data stays.';
       case UpdateStep.downloading:
         return 'Downloading ${c.update!.version}… ${(c.progress * 100).round()}%';
       case UpdateStep.readyToInstall:

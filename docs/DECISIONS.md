@@ -26,20 +26,34 @@ Each entry: date, decision, reason. Plan-level decisions D1–D7 are in PLAN.md 
 
 ## In-app update (WBS 11.3)
 
-- **Source of truth: the GitHub Releases API** (`releases/latest`). No separate version file to host.
-  A release counts only if it has an `.apk` asset served from `https://github.com/` with a SHA-256
-  digest. Releases without those are ignored.
-- **Integrity:** the downloaded APK must match the SHA-256 GitHub publishes for it, and the byte count
-  must match. A file that fails is deleted and never installed. Android's own signature check
-  (same release key on every build) is the final guard.
+- **Source of the newest version: the GitHub release page** (`/releases/latest`), read from its redirect.
+  The GitHub API was tried first and hit its anonymous limit (60 requests an hour per network address), so
+  phones on shared networks got a 403. The release page isn't limited that way.
+- **Each release ships `herald-<version>-arm64.apk.sha256`** next to its APK. The app downloads the
+  checksum file first, then the APK, and deletes the APK if its SHA-256 doesn't match. Android's own
+  signature check (the same release key on every build) is the final guard.
+- **A release without a checksum file is refused** before anything is downloaded.
 - **Comparison:** `major.minor.patch` of the tag against the installed version name. CI sets the version
   name from the tag, so the two stay in step.
 - **Install:** Android's installer, through a FileProvider limited to the app cache folder `updates/`.
   The first time, Android asks the player to allow installs from Herald; the card explains this.
+- **Not shown yet:** release notes. The release page has them, but reading them needs a second page
+  request; add later if wanted.
 - **Limit (for now):** the download runs while the app is open. A download in the background
   (a foreground service, as in the arcade app) is a later step.
 - **Limit (for now):** an interrupted download starts again from the beginning.
-- The version you install before this update exists (0.1.0) cannot update itself; install 0.1.1 from
-  the Releases page once.
+- Versions before 0.1.3 (0.1.1 and 0.1.2) still use the API and cannot finish an update.
+  Install 0.1.3 once from the Releases page; after that the app updates itself.
 - `targetSdk` stays 28 (see above). The arm64-only build is checked in CI.
+
+## Linux runtime pieces: proot (WBS 1.1 and 1.2)
+
+- **proot comes from the Termux packages** (`runtime/proot/README.md`), patched to load its neighbours from
+  the app's native library folder (`$ORIGIN`). The patches are reproducible with `tools/patch-proot.sh`, which
+  checks each package's SHA-256 first.
+- **Native library folder, not app data:** the four files are packaged as native libraries and extracted
+  (`useLegacyPackaging`). That folder is where Android lets an app run its own binaries, which is what
+  targetSdk 28 relies on (PLAN.md D2).
+- **Not yet proven on a phone.** Phase 1.2 is the phone test: the debug screen runs `proot --version`.
+  Under qemu there is no Android linker, so nothing was run here.
 
