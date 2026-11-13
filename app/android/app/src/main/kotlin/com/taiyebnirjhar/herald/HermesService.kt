@@ -50,6 +50,7 @@ class HermesService : Service() {
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("Herald")
             .setContentText(text)
+            .setContentIntent(Routes.pendingIntent(this, Routes.SETUP))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .build()

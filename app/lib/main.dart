@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'chat/engine_connection.dart';
 import 'chat/native_chat_page.dart';
+import 'navigation/notification_routes.dart';
 import 'notify/job_run_watcher.dart';
 import 'notify/job_runs_channel.dart';
 import 'setup/setup_page.dart';
@@ -51,12 +53,22 @@ Future<void> main() async {
     state: runBridge,
     notifier: runBridge,
   );
+  // Opens the screen a notification asked for
+  final navigatorKey = GlobalKey<NavigatorState>();
+  final router = NotificationRouter(
+    onRoute: (route) => openNotificationRoute(navigatorKey.currentState, route),
+  );
   runApp(HeraldApp(
     updates: updates,
     store: store,
     showWelcome: showWelcome,
     jobRunWatcher: jobRunWatcher,
+    navigatorKey: navigatorKey,
   ));
+  // Once the first screen is up, the notification's screen opens on top of it.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(router.start());
+  });
 }
 
 /// Palette taken from the light, glassy chat-bot UI reference (lavender + lime).
@@ -77,6 +89,7 @@ class HeraldApp extends StatelessWidget {
     required this.store,
     this.showWelcome = false,
     this.jobRunWatcher,
+    this.navigatorKey,
   });
 
   final UpdateController updates;
@@ -90,10 +103,14 @@ class HeraldApp extends StatelessWidget {
   /// Announces finished scheduled-job runs while the app is open. Null in tests.
   final JobRunWatcher? jobRunWatcher;
 
+  /// Lets a notification open a screen from outside the widget tree. Null in tests.
+  final GlobalKey<NavigatorState>? navigatorKey;
+
   @override
   Widget build(BuildContext context) {
     final home = HelloPage(updates: updates, store: store);
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Herald',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
