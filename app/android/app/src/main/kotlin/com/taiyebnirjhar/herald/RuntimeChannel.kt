@@ -63,6 +63,8 @@ class RuntimeChannel(
                 }
             }
             "hermesStatus" -> result.success(hermes.status())
+            "repairRuntime" -> inBackground(result) { runtime.repair() }
+            "resetRuntime" -> inBackground(result) { runtime.reset() }
             else -> result.notImplemented()
         }
     }
