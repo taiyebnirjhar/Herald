@@ -67,6 +67,13 @@ To add them on GitHub (phone or computer):
 
 If a secret is missing, the build stops with a clear message and does not produce an APK.
 
-## Open-source licences
+## Licence
 
-Herald is free for personal and other non-commercial use. You may use, copy, modify and share it. **You may not sell it or use it commercially.** The full terms are in [LICENSE](LICENSE) (PolyForm Noncommercial 1.0.0). Third-party licences are listed in [THIRD_PARTY.md](THIRD_PARTY.md).
+Herald is free to use, and free to contribute to. The full terms are in [LICENSE](LICENSE). In short:
+
+- Use it free of charge for any purpose.
+- Keep the credit to Herald and its author. Never present it as your own.
+- Improvements go back as a **pull request** to this repository.
+- Nobody may sell Herald, or sell a modified version of it.
+
+Third-party components keep their own licences, listed in [THIRD_PARTY.md](THIRD_PARTY.md).
