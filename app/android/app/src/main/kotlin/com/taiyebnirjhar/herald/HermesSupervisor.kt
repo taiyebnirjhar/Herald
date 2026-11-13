@@ -35,7 +35,7 @@ class HermesSupervisor(private val context: Context, private val runtime: ProotR
                 setPhase(Phase.STARTING, "Starting Hermes…")
                 logFile.parentFile?.mkdirs()
                 val started = System.currentTimeMillis()
-                val child = runtime.startInGuest(dashboardCommand(), logFile)
+                val child = runtime.startInGuest(dashboardCommand(installedWebDist()), logFile)
                 synchronized(lock) { process = child }
                 val health = Thread({ watchHealth(child) }, "hermes-health").apply { isDaemon = true }
                 health.start()
@@ -78,6 +78,10 @@ class HermesSupervisor(private val context: Context, private val runtime: ProotR
             // The process ended.
         }
     }
+
+    /** The installed web UI, if the installer left it in the Linux base; otherwise null. */
+    private fun installedWebDist(): String? =
+        if (File(runtime.rootfsDir, "$WEB_DIST_IN_GUEST/index.html").exists()) WEB_DIST_IN_GUEST else null
 
     private fun answers(): Boolean = try {
         Socket().use { it.connect(InetSocketAddress(HOST, PORT), 1_000) }
@@ -132,14 +136,29 @@ class HermesSupervisor(private val context: Context, private val runtime: ProotR
 
         enum class Phase { STOPPED, STARTING, READY, RESTARTING, GAVE_UP }
 
-        /** The dashboard command, with a clean environment. Loopback only (PLAN.md D7). */
-        fun dashboardCommand(): List<String> = listOf(
-            "/usr/bin/env", "-i",
-            "HOME=/root",
-            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            "LANG=C.UTF-8",
-            "/usr/local/bin/hermes", "dashboard",
-            "--host", HOST, "--port", PORT.toString(), "--no-open",
-        )
+        /**
+         * Where the installer puts the built web UI, as a path inside the Linux base.
+         * Without it, the dashboard tries to build the UI on every start, and the phone has no npm.
+         */
+        const val WEB_DIST_IN_GUEST = "/usr/local/lib/hermes-agent/hermes_cli/web_dist"
+
+        /**
+         * The dashboard command, with a clean environment. Loopback only (PLAN.md D7).
+         * With [webDist], Hermes is told where the built web UI is, so it does not rebuild it.
+         */
+        fun dashboardCommand(webDist: String? = null): List<String> = buildList {
+            add("/usr/bin/env")
+            add("-i")
+            add("HOME=/root")
+            add("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+            add("LANG=C.UTF-8")
+            if (webDist != null) add("HERMES_WEB_DIST=$webDist")
+            addAll(
+                listOf(
+                    "/usr/local/bin/hermes", "dashboard",
+                    "--host", HOST, "--port", PORT.toString(), "--no-open",
+                ),
+            )
+        }
     }
 }
