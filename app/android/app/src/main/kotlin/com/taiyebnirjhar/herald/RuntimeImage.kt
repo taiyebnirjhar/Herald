@@ -14,5 +14,5 @@ object RuntimeImage {
         "https://github.com/taiyebnirjhar/Herald/releases/download/runtime-v0.0.2/debian-trixie-arm64.tar.gz"
 
     /** SHA-256 of the image. Checked before anything is unpacked. */
-    const val SHA256 = "4802af3f826731048ac47da5026eab2aee08b482fc42752ee57720ddb53a0b05"
+    const val SHA256 = "d2366403876378d246de957dd26eb4b4358d87d1b621ba138365b5ed574d41b5"
 }
