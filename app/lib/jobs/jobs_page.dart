@@ -37,13 +37,16 @@ class _JobsPageState extends State<JobsPage> {
     super.dispose();
   }
 
+  /// Reads the address again each time, so a key that Android has just confirmed is used,
+  /// and an empty key (Hermes not confirmed running) is never sent.
   Future<JobsApi> _client() async {
-    final existing = _api;
-    if (existing != null) return existing;
     final address = await (widget.connection ?? MethodChannelEngineConnection()).address();
-    final api = (widget.createApi ?? _defaultApi)(address);
-    _api = api;
-    return api;
+    final current = _api;
+    if (current == null || current.port != address.port || current.apiKey != address.key) {
+      current?.close();
+      _api = (widget.createApi ?? _defaultApi)(address);
+    }
+    return _api!;
   }
 
   JobsApi _defaultApi(EngineAddress a) => JobsApi(port: a.port, apiKey: a.key);

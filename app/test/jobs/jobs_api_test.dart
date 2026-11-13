@@ -90,4 +90,59 @@ void main() {
       throwsA(isA<JobsApiException>().having((e) => e.message, 'message', contains('code 500'))),
     );
   });
+
+  test('one odd job does not break the list, and a bad id is skipped', () async {
+    final client = MockClient((_) async => http.Response(
+          jsonEncode({
+            'jobs': [
+              {'id': 42, 'name': 'Numeric id'},
+              {'id': 'j1', 'name': 7, 'paused': 'yes'},
+              'not a job',
+              {'id': 'j2', 'name': 'Good one', 'paused': false},
+            ],
+          }),
+          200,
+        ));
+
+    final jobs = await _api(client).list();
+
+    expect(jobs.map((j) => j.id).toList(), ['j1', 'j2']);
+    expect(jobs.first.name, 'Untitled job');
+    expect(jobs.first.paused, isFalse);
+  });
+
+  test('a body that is not JSON gives a plain message', () async {
+    final client = MockClient((_) async => http.Response('<html>oops</html>', 200));
+
+    await expectLater(
+      _api(client).list(),
+      throwsA(isA<JobsApiException>().having((e) => e.message, 'message', contains('could not read'))),
+    );
+  });
+
+  test('no key means nothing is sent', () async {
+    var sent = 0;
+    final client = MockClient((_) async {
+      sent++;
+      return http.Response('{}', 200);
+    });
+
+    await expectLater(
+      JobsApi(port: 8642, apiKey: '', client: client).list(),
+      throwsA(isA<JobsApiException>().having((e) => e.message, 'message', contains("isn't running"))),
+    );
+    expect(sent, 0);
+  });
+
+  test('a job id is encoded before it goes into the path', () async {
+    late http.Request seen;
+    final client = MockClient((request) async {
+      seen = request;
+      return http.Response('{}', 200);
+    });
+
+    await _api(client).pause('a/b c');
+
+    expect(seen.url.path, '/api/jobs/a%2Fb%20c/pause');
+  });
 }

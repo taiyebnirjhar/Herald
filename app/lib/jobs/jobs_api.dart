@@ -24,14 +24,17 @@ class ScheduledJob {
   final String scheduleText;
   final String prompt;
 
+  /// Reads each field only if it has the expected type, so one odd value cannot break the list.
   factory ScheduledJob.fromJson(Map<String, dynamic> json) => ScheduledJob(
-        id: json['id'] as String? ?? '',
-        name: json['name'] as String? ?? 'Untitled job',
+        id: _text(json['id']) ?? '',
+        name: _text(json['name']) ?? 'Untitled job',
         paused: json['paused'] == true,
-        state: json['state'] as String? ?? '',
-        scheduleText: json['schedule_display'] as String? ?? '',
-        prompt: json['prompt'] as String? ?? '',
+        state: _text(json['state']) ?? '',
+        scheduleText: _text(json['schedule_display']) ?? '',
+        prompt: _text(json['prompt']) ?? '',
       );
+
+  static String? _text(Object? value) => value is String ? value : null;
 }
 
 /// A problem the player can read. Never contains the key.
@@ -69,26 +72,37 @@ class JobsApi {
       queryParameters: {'include_disabled': 'true'},
     );
     final response = await _send(() => _client.get(uri, headers: _headers));
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final jobs = body['jobs'] as List? ?? const [];
+    final Object? body;
+    try {
+      body = jsonDecode(response.body);
+    } catch (_) {
+      throw const JobsApiException('Hermes sent an answer Herald could not read. Try again.');
+    }
+    final jobs = body is Map ? body['jobs'] : null;
+    if (jobs is! List) return const [];
     return [
       for (final j in jobs)
-        if (j is Map<String, dynamic>) ScheduledJob.fromJson(j),
+        if (j is Map<String, dynamic> && j['id'] is String && (j['id'] as String).isNotEmpty)
+          ScheduledJob.fromJson(j),
     ];
   }
 
-  Future<void> pause(String id) => _post('/api/jobs/$id/pause');
+  Future<void> pause(String id) => _post('/api/jobs/${Uri.encodeComponent(id)}/pause');
 
-  Future<void> resume(String id) => _post('/api/jobs/$id/resume');
+  Future<void> resume(String id) => _post('/api/jobs/${Uri.encodeComponent(id)}/resume');
 
   /// Runs the job now, once.
-  Future<void> runNow(String id) => _post('/api/jobs/$id/run');
+  Future<void> runNow(String id) => _post('/api/jobs/${Uri.encodeComponent(id)}/run');
 
   Future<void> _post(String path) async {
     await _send(() => _client.post(_uri(path), headers: _headers, body: '{}'));
   }
 
   Future<http.Response> _send(Future<http.Response> Function() request) async {
+    // No key means Hermes is not confirmed running. Send nothing in that case.
+    if (apiKey.isEmpty) {
+      throw const JobsApiException("Hermes isn't running. Start it first.");
+    }
     final http.Response response;
     try {
       response = await request().timeout(const Duration(seconds: 15));
