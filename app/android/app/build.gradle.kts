@@ -110,4 +110,6 @@ flutter {
 dependencies {
     implementation("org.apache.commons:commons-compress:1.27.1")
     testImplementation("junit:junit:4.13.2")
+    // Real JSON parsing in JVM unit tests (Android's org.json is only a stub there). Test only.
+    testImplementation("org.json:json:20240303")
 }

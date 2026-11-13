@@ -93,3 +93,25 @@ Each entry: date, decision, reason. Plan-level decisions D1–D7 are in PLAN.md 
 - **Remaining risk:** another app could still bind the random port in the short window after Hermes stops, before the supervisor notices. The window is short and the port is random. A stronger fix would need a socket only this app can reach, which Hermes's API server does not offer today.
 - **Also fixed in the same change:** a provider key or model starting with a dash is refused (Hermes would read it as an option); a Hermes error during a reply is shown as an error instead of an empty bubble; the key store is synchronised so two threads cannot create two keys.
 - **Not yet fixed:** keep the Hermes key out of the agent's own commands. This needs a patch to Hermes's scrub list under `runtime/patches/`.
+
+## Job result notifications (WBS 0.3.4)
+
+- A finished scheduled-job run is announced once. Herald reads `GET /api/jobs` (`include_disabled=true`)
+  and looks at each job's `latest_execution` (Hermes `cron/jobs.py` `list_jobs`, `cron/executions.py`).
+  A run is finished when its status is `completed`, `failed` or `unknown`.
+- Checks run every 60 seconds. While the app is open, the Dart side checks (`lib/notify/`). While the app is
+  closed and Hermes runs, the Kotlin poller checks (`JobRunPoller.kt`). The app's screen decides which one.
+- One saved value per job holds the last announced run id. Both sides read and write it in Herald's own
+  SharedPreferences (`job_runs`), so a run is never announced twice. The Dart side reaches it through the
+  `herald/notify` channel. (shared_preferences 2.5 keeps data in DataStore on Android, so the two sides do not
+  share that store.)
+- The first look at a job is silent, so installing the app does not announce old runs. A run still going at
+  that first look is announced when it finishes.
+- Hermes gives a job's name from its prompt when the job has no name. Herald replaces such a name with
+  "Scheduled job", so no prompt text reaches a notification.
+- Known gap: only the newest run of a job is visible. If one job finishes two runs between two checks, the
+  earlier one is not announced. Jobs are normally spaced far enough apart that this does not happen.
+- Known gap: "unknown" means Hermes lost track of the run (for example after a crash). It is announced as
+  "ended unclearly", not as a failure.
+- Android 13 and later: Herald targets SDK 28 (D2), so Android shows no permission question for notifications.
+  The owner must turn notifications on for Herald in Android settings, or nothing is shown.
