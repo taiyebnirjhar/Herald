@@ -8,6 +8,20 @@ import '../runtime/runtime_channel.dart';
 import '../runtime/runtime_image.dart';
 import '../update/update_exception.dart';
 
+/// Free space the Linux base needs (download plus unpacked copy, with headroom).
+const int linuxNeedMb = 400;
+
+/// Free space the Hermes install needs (Python and packages).
+const int hermesNeedMb = 2048;
+
+/// A message when [freeMb] is less than [needMb], else null.
+String? spaceProblem(int? freeMb, int needMb, String what) {
+  if (freeMb == null) return null;
+  if (freeMb >= needMb) return null;
+  return 'Not enough free space for $what: $freeMb MB free, about $needMb MB needed. '
+      'Free some space and try again.';
+}
+
 /// Removes terminal colour codes (ESC [ ... m, shown as a box or a replacement
 /// character when the bytes are not valid text) so logs read as plain text.
 String plainLog(String text) =>
@@ -97,10 +111,9 @@ class _SetupPageState extends State<SetupPage> {
   }
 
   String _readyText(String output) {
-    final firstLine = output.split('\n').firstWhere(
-          (l) => l.trim().isNotEmpty,
-          orElse: () => '',
-        );
+    final firstLine = output
+        .split('\n')
+        .firstWhere((l) => l.trim().isNotEmpty, orElse: () => '');
     return firstLine.isEmpty ? 'Ready.' : 'Ready: ${firstLine.trim()}';
   }
 
@@ -111,12 +124,27 @@ class _SetupPageState extends State<SetupPage> {
     required void Function(DownloadState s) onState,
     bool wifiOnly = false,
   }) async {
-    await _downloader.start(url: url, name: name, title: title, wifiOnly: wifiOnly);
+    await _downloader.start(
+      url: url,
+      name: name,
+      title: title,
+      wifiOnly: wifiOnly,
+    );
     return _downloader.waitFor(name, onProgress: onState);
   }
 
   Future<void> _setupLinux() async {
     if (_busy) return;
+    final facts = await widget.runtime.describe();
+    final freeMb = (facts['freeMb'] as num?)?.toInt();
+    final problem = spaceProblem(freeMb, linuxNeedMb, 'the Linux base');
+    if (problem != null) {
+      setState(() {
+        _linux = StepState.failed;
+        _linuxText = problem;
+      });
+      return;
+    }
     _busy = true;
     setState(() {
       _linux = StepState.working;
@@ -136,7 +164,8 @@ class _SetupPageState extends State<SetupPage> {
               _linuxText = 'Waiting for Wi-Fi. It continues when Wi-Fi is on.';
               _linuxProgress = null;
             } else {
-              _linuxText = 'Downloading… ${(s.fraction * 100).round()}%. '
+              _linuxText =
+                  'Downloading… ${(s.fraction * 100).round()}%. '
                   'You can close the app; it keeps going.';
               _linuxProgress = s.fraction;
             }
@@ -155,14 +184,18 @@ class _SetupPageState extends State<SetupPage> {
       if (!mounted) return;
       setState(() {
         _linux = r.ok ? StepState.done : StepState.failed;
-        _linuxText = r.ok ? 'Ready.' : (r.error ?? 'It did not install. Try again.');
+        _linuxText = r.ok
+            ? 'Ready.'
+            : (r.error ?? 'It did not install. Try again.');
         _linuxProgress = null;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _linux = StepState.failed;
-        _linuxText = e is UpdateException ? e.message : 'It did not install. Try again.';
+        _linuxText = e is UpdateException
+            ? e.message
+            : 'It did not install. Try again.';
         _linuxProgress = null;
       });
     } finally {
@@ -173,6 +206,19 @@ class _SetupPageState extends State<SetupPage> {
 
   Future<void> _installHermes() async {
     if (_busy || _linux != StepState.done) return;
+    final facts = await widget.runtime.describe();
+    final problem = spaceProblem(
+      (facts['freeMb'] as num?)?.toInt(),
+      hermesNeedMb,
+      'Hermes',
+    );
+    if (problem != null) {
+      setState(() {
+        _hermes = StepState.failed;
+        _hermesText = problem;
+      });
+      return;
+    }
     _busy = true;
     setState(() {
       _hermes = StepState.working;
@@ -200,7 +246,9 @@ class _SetupPageState extends State<SetupPage> {
       if (!mounted) return;
       setState(() {
         _hermes = StepState.failed;
-        _hermesText = e is UpdateException ? e.message : 'The install did not start. Try again.';
+        _hermesText = e is UpdateException
+            ? e.message
+            : 'The install did not start. Try again.';
       });
       _busy = false;
     }
@@ -236,7 +284,10 @@ class _SetupPageState extends State<SetupPage> {
   }
 
   String _latestLine(String log, {required String fallback}) {
-    final lines = log.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty);
+    final lines = log
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty);
     return lines.isEmpty ? fallback : lines.last;
   }
 
@@ -245,6 +296,57 @@ class _SetupPageState extends State<SetupPage> {
       final facts = await widget.runtime.describe();
       if (mounted) setState(() => _facts = facts);
     } catch (_) {}
+  }
+
+  /// Removes the unpacked Linux base; the next setup unpacks it again.
+  Future<void> _repairRuntime() async {
+    final r = await widget.runtime.repairRuntime();
+    if (!mounted) return;
+    setState(() {
+      _linux = r.ok ? StepState.notStarted : StepState.failed;
+      _linuxText = r.ok
+          ? 'Removed. Set up again.'
+          : (r.error ?? 'Could not remove it.');
+      _hermes = StepState.notStarted;
+      _hermesText = 'Set up the Linux base first.';
+      _hermesLog = '';
+    });
+  }
+
+  /// Asks first: a reset removes the Linux base and Hermes, and their logs.
+  Future<void> _confirmReset() async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Linux and Hermes?'),
+        content: const Text(
+          'This removes the Linux base, Hermes Agent and the install log. '
+          'Your settings and chats are not touched.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (yes != true) return;
+    final r = await widget.runtime.resetRuntime();
+    if (!mounted) return;
+    setState(() {
+      _linux = r.ok ? StepState.notStarted : StepState.failed;
+      _linuxText = r.ok
+          ? 'Reset. Set up again.'
+          : (r.error ?? 'Could not reset.');
+      _hermes = StepState.notStarted;
+      _hermesText = 'Set up the Linux base first.';
+      _hermesLog = '';
+    });
   }
 
   Future<void> _runProotCheck() async {
@@ -294,7 +396,8 @@ class _SetupPageState extends State<SetupPage> {
               StepState.working => 'Working…',
               StepState.done => 'Ready',
             },
-            onPressed: _linux == StepState.notStarted || _linux == StepState.failed
+            onPressed:
+                _linux == StepState.notStarted || _linux == StepState.failed
                 ? _setupLinux
                 : null,
           ),
@@ -311,8 +414,10 @@ class _SetupPageState extends State<SetupPage> {
               StepState.working => 'Installing…',
               StepState.done => 'Installed',
             },
-            onPressed: _linux == StepState.done &&
-                    (_hermes == StepState.notStarted || _hermes == StepState.failed)
+            onPressed:
+                _linux == StepState.done &&
+                    (_hermes == StepState.notStarted ||
+                        _hermes == StepState.failed)
                 ? _installHermes
                 : null,
           ),
@@ -325,7 +430,11 @@ class _SetupPageState extends State<SetupPage> {
             if (_showLog)
               SelectableText(
                 shownLog,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 11, height: 1.3),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  height: 1.3,
+                ),
               ),
           ],
           const SizedBox(height: 16),
@@ -334,19 +443,42 @@ class _SetupPageState extends State<SetupPage> {
               setState(() => _showDetails = !_showDetails);
               if (_showDetails) _loadFacts();
             },
-            child: Text(_showDetails ? 'Hide technical details' : 'Show technical details'),
+            child: Text(
+              _showDetails
+                  ? 'Hide technical details'
+                  : 'Show technical details',
+            ),
           ),
           if (_showDetails) ...[
             SelectableText(
               _facts.isEmpty
                   ? 'Loading…'
-                  : _facts.entries.map((e) => '${e.key}: ${e.value}').join('\n'),
+                  : _facts.entries
+                        .map((e) => '${e.key}: ${e.value}')
+                        .join('\n'),
               style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
             ),
             const SizedBox(height: 10),
-            OutlinedButton(onPressed: _runProotCheck, child: const Text('Run proot --version')),
+            OutlinedButton(
+              onPressed: _runProotCheck,
+              child: const Text('Run proot --version'),
+            ),
             const SizedBox(height: 8),
-            OutlinedButton(onPressed: _runUnameCheck, child: const Text('Run uname -a in Linux')),
+            OutlinedButton(
+              onPressed: _runUnameCheck,
+              child: const Text('Run uname -a in Linux'),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: _repairRuntime,
+              child: const Text('Repair Linux base'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+              onPressed: _confirmReset,
+              child: const Text('Reset Linux and Hermes'),
+            ),
             if (_techResult.isNotEmpty) ...[
               const SizedBox(height: 10),
               SelectableText(
@@ -396,7 +528,11 @@ class _StepCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 6)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
         ],
       ),
       child: Column(
@@ -409,13 +545,19 @@ class _StepCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   '$number. $title',
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(text, style: const TextStyle(color: Color(0xFF55525E), height: 1.4)),
+          Text(
+            text,
+            style: const TextStyle(color: Color(0xFF55525E), height: 1.4),
+          ),
           if (state == StepState.working) ...[
             const SizedBox(height: 10),
             ClipRRect(
