@@ -23,7 +23,8 @@ class BackgroundDownloads(private val context: Context) {
     /** Starts [url] as [name] (or reattaches to it if it is already running or done). */
     fun start(url: String, name: String, title: String, wifiOnly: Boolean): Map<String, Any?> {
         val known = prefs.getLong(name, -1L)
-        if (known >= 0 && status(name)["state"] != "failed") return status(name)
+        val state = status(name)["state"] as String
+        if (known >= 0 && DownloadReuse.shouldReuse(state, File(folder(), name).exists())) return status(name)
         if (known >= 0) manager.remove(known)
         File(folder(), name).delete()
 
@@ -43,16 +44,19 @@ class BackgroundDownloads(private val context: Context) {
         if (id < 0) return mapOf("state" to "none")
         manager.query(DownloadManager.Query().setFilterById(id)).use { c ->
             if (!c.moveToFirst()) return mapOf("state" to "none")
+            // A finished download counts only while its file is still on the phone.
+            val fileThere = File(folder(), name).exists()
             val status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
             val bytes = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
             val total = c.getLong(c.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
             val reason = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
             val state = when (status) {
-                DownloadManager.STATUS_SUCCESSFUL -> "done"
+                DownloadManager.STATUS_SUCCESSFUL -> if (fileThere) "done" else "none"
                 DownloadManager.STATUS_FAILED -> "failed"
                 DownloadManager.STATUS_PAUSED -> "waiting"
                 else -> "running"
             }
+            if (state == "none") return mapOf("state" to "none")
             return mapOf(
                 "state" to state,
                 "bytes" to bytes,
