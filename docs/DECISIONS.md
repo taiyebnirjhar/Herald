@@ -65,3 +65,11 @@ Each entry: date, decision, reason. Plan-level decisions D1–D7 are in PLAN.md 
   before it is unpacked.
 - The earlier bundled approach (60 MB APKs) is dropped to keep updates small.
 
+
+## Download progress gap: downloads inside the Linux base (rule 0d)
+
+- Downloads the Hermes installer makes inside the Linux base (package installs, uv and Python) report
+  progress from the installer's own stages (its log lines), not from bytes. The setup screen shows the
+  latest stage line and the step.
+- Byte-level progress for these is not built yet. Planned: parse the installer's progress lines, or run the
+  package steps through a counted download. Owner to be told when this changes.
