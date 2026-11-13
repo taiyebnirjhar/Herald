@@ -6,10 +6,10 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
 
-/** The two Hermes engines and the port each one listens on on 127.0.0.1. */
-enum class Engine(val port: Int) {
-    DASHBOARD(9119),
-    GATEWAY(8642),
+/** The two Hermes engines. The dashboard has a fixed port; the API server's port is random per install. */
+enum class Engine {
+    DASHBOARD,
+    GATEWAY,
 }
 
 /**
@@ -41,14 +41,16 @@ class HermesSupervisor(private val context: Context, private val runtime: ProotR
 
     private fun loop(engine: Engine) {
         val backoff = RestartBackoff()
+        synchronized(lock) { activeEngine = engine }
         try {
             while (!stopRequested) {
                 setPhase(Phase.STARTING, "Starting Hermes…")
                 logFile.parentFile?.mkdirs()
                 val started = System.currentTimeMillis()
-                val child = runtime.startInGuest(commandFor(engine), logFile)
+                val port = portOf(engine)
+                val child = runtime.startInGuest(commandFor(engine, port), logFile)
                 synchronized(lock) { process = child }
-                val health = Thread({ watchHealth(child, engine.port) }, "hermes-health").apply { isDaemon = true }
+                val health = Thread({ watchHealth(child, port) }, "hermes-health").apply { isDaemon = true }
                 health.start()
 
                 val code = child.waitFor()
@@ -71,15 +73,21 @@ class HermesSupervisor(private val context: Context, private val runtime: ProotR
             synchronized(lock) {
                 running = false
                 process = null
+                activeEngine = null
             }
             if (phase != Phase.GAVE_UP) setPhase(Phase.STOPPED, "Hermes is stopped.")
         }
     }
 
+    private fun portOf(engine: Engine): Int = when (engine) {
+        Engine.DASHBOARD -> DASHBOARD_PORT
+        Engine.GATEWAY -> ApiKey.port(context)
+    }
+
     /** The command for [engine]. The gateway needs the API key, which only this app holds. */
-    private fun commandFor(engine: Engine): List<String> = when (engine) {
+    private fun commandFor(engine: Engine, port: Int): List<String> = when (engine) {
         Engine.DASHBOARD -> dashboardCommand(installedWebDist())
-        Engine.GATEWAY -> gatewayCommand(ApiKey.load(context))
+        Engine.GATEWAY -> gatewayCommand(ApiKey.load(context), port)
     }
 
     /** Checks the engine's port while [child] runs and reports ready or not. */
@@ -122,6 +130,7 @@ class HermesSupervisor(private val context: Context, private val runtime: ProotR
 
     companion object {
         const val HOST = "127.0.0.1"
+        const val DASHBOARD_PORT = 9119
         private const val HEALTH_EVERY_MS = 2_000L
         private const val HEALTHY_AFTER_MS = 60_000L
         private const val CLEAN_PATH = "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -130,6 +139,11 @@ class HermesSupervisor(private val context: Context, private val runtime: ProotR
         private var running = false
         private var stopRequested = false
         private var process: Process? = null
+
+        /** Which engine the loop is running, or null when stopped. Read by the channel that hands out the key. */
+        @Volatile
+        var activeEngine: Engine? = null
+            private set
 
         @Volatile
         var phase: Phase = Phase.STOPPED
@@ -173,23 +187,23 @@ class HermesSupervisor(private val context: Context, private val runtime: ProotR
             addAll(
                 listOf(
                     "/usr/local/bin/hermes", "dashboard",
-                    "--host", HOST, "--port", Engine.DASHBOARD.port.toString(), "--no-open",
+                    "--host", HOST, "--port", DASHBOARD_PORT.toString(), "--no-open",
                 ),
             )
         }
 
         /**
          * The API server (the native chat talks to it), with a clean environment. It listens
-         * on loopback only and asks for [apiKey] on every request.
+         * on loopback only, on [port], and asks for [apiKey] on every request.
          */
-        fun gatewayCommand(apiKey: String): List<String> = buildList {
+        fun gatewayCommand(apiKey: String, port: Int): List<String> = buildList {
             add("/usr/bin/env")
             add("-i")
             add("HOME=/root")
             add(CLEAN_PATH)
             add("LANG=C.UTF-8")
             add("API_SERVER_HOST=$HOST")
-            add("API_SERVER_PORT=${Engine.GATEWAY.port}")
+            add("API_SERVER_PORT=$port")
             add("API_SERVER_KEY=$apiKey")
             addAll(listOf("/usr/local/bin/hermes", "gateway", "run"))
         }

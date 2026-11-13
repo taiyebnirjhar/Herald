@@ -68,4 +68,11 @@ class ProviderSetupTest {
         assertEquals(Provider.XAI, Provider.byId("xai"))
         assertNull(Provider.byId("nope"))
     }
+
+    @Test
+    fun aKeyOrModelStartingWithADashIsAProblem() {
+        // Hermes reads a leading dash as an option and would print help instead of saving.
+        assertNotNull(ProviderSetup.problem(Provider.XAI, "-help-me-0123456789", "grok-4"))
+        assertNotNull(ProviderSetup.problem(Provider.XAI, key, "--help-me"))
+    }
 }
