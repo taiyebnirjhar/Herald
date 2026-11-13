@@ -36,12 +36,9 @@ To update later, repeat steps 2–5. The new version installs over the old one a
 
 - Every push to `main` or a `feat/`, `fix/`, `chore/` or `docs/` branch runs analyze, tests and a release build in
   GitHub Actions. The APK is in the run's **Artifacts**.
-- Pushing a tag like `v0.1.0` also creates a **GitHub Release** with the signed APK attached.
-
-```
-git tag v0.1.0
-git push origin v0.1.0
-```
+- To publish a release: on GitHub open **Actions → App (APK) → Run workflow**, choose the branch, type the tag
+  (for example `v0.1.0`) in **release_tag**, and run it. The workflow creates the tag and the GitHub Release with the signed APK.
+- Pushing a tag like `v0.1.0` also publishes a release.
 
 ## Signing key (one-time setup, required for any release)
 
