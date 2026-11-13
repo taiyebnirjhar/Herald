@@ -43,3 +43,14 @@ Each entry: date, decision, reason. Plan-level decisions D1–D7 are in PLAN.md 
   the Releases page once.
 - `targetSdk` stays 28 (see above). The arm64-only build is checked in CI.
 
+## Linux runtime pieces: proot (WBS 1.1 and 1.2)
+
+- **proot comes from the Termux packages** (`runtime/proot/README.md`), patched to load its neighbours from
+  the app's native library folder (`$ORIGIN`). The patches are reproducible with `tools/patch-proot.sh`, which
+  checks each package's SHA-256 first.
+- **Native library folder, not app data:** the four files are packaged as native libraries and extracted
+  (`useLegacyPackaging`). That folder is where Android lets an app run its own binaries, which is what
+  targetSdk 28 relies on (PLAN.md D2).
+- **Not yet proven on a phone.** Phase 1.2 is the phone test: the debug screen runs `proot --version`.
+  Under qemu there is no Android linker, so nothing was run here.
+

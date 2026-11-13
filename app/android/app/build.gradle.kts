@@ -52,6 +52,19 @@ android {
         }
     }
 
+    // The proot pieces (runtime/proot/) are native libraries. They are extracted to the
+    // app's native library folder, where Android allows them to run.
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDir("../../../runtime/proot/jniLibs")
+        }
+    }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
             if (hasReleaseKey) {

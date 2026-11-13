@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'debug/runtime_debug_page.dart';
+import 'runtime/runtime_channel.dart';
 import 'update/app_installer.dart';
 import 'update/update_controller.dart';
 import 'update/update_service.dart';
@@ -157,8 +159,11 @@ class _TopBar extends StatelessWidget {
         _RoundIconButton(
           icon: Icons.menu_rounded,
           tooltip: 'Menu',
-          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Menu comes in a later phase.')),
+          // Phase 1 debug: the runtime check. The real menu comes later.
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => RuntimeDebugPage(runtime: RuntimeChannel()),
+            ),
           ),
         ),
       ],

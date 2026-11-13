@@ -1,7 +1,14 @@
 # Third-party code and licences
 
-Phase 0 ships only Flutter and its Dart/Android dependencies (BSD-3-Clause, via the Flutter
-SDK and pub packages). Nothing else is bundled yet.
+Flutter and its Dart/Android dependencies (BSD-3-Clause, via the Flutter SDK and pub packages).
+
+Bundled in the app (WBS 1.1, `runtime/proot/`):
+
+| Component | Licence | Licence text | Source |
+| --- | --- | --- | --- |
+| proot 5.1.107.102 (Termux build) | GPL-2.0-or-later | `runtime/proot/licenses/GPL-2.0.txt`, `GPL-3.0.txt` | Termux packages, see `runtime/proot/README.md` |
+| libtalloc 2.5.0 (Termux build) | LGPL-3.0 | `runtime/proot/licenses/LGPL-3.0.txt` | same |
+| libandroid-shmem 0.7 (Termux build) | see the Termux package | same | same |
 
 Planned (not in this build yet, see PLAN.md §3 and §4):
 
