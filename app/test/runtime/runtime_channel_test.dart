@@ -56,9 +56,10 @@ void main() {
   test('installRootfs asks Android to unpack the bundled image', () async {
     messenger.setMockMethodCallHandler(channel, (call) async {
       expect(call.method, 'installRootfs');
+      expect(call.arguments, {'path': '/cache/linux.tar.gz'});
       return {'ok': true, 'path': '/data/runtime/debian'};
     });
-    final r = await RuntimeChannel().installRootfs();
+    final r = await RuntimeChannel().installRootfs(path: '/cache/linux.tar.gz');
     expect(r.ok, isTrue);
   });
 
@@ -87,7 +88,7 @@ void main() {
           'ok': false,
           'error': "The Linux image didn't pass the safety check",
         });
-    final r = await RuntimeChannel().installRootfs();
+    final r = await RuntimeChannel().installRootfs(path: 'x');
     expect(r.ok, isFalse);
     expect(r.error, contains('safety check'));
   });
@@ -109,15 +110,27 @@ void main() {
     final status = await RuntimeChannel().hermesStatus();
     expect(status.running, isTrue);
     expect(status.log, 'step 3 of 9');
+    expect(status.result, isNull);
   });
 
-  test('hermesInstall reports the version check', () async {
+  test('hermesStatus carries the result when the install is done', () async {
+    messenger.setMockMethodCallHandler(channel, (_) async => {
+          'running': false,
+          'log': 'done',
+          'result': {'ok': true, 'output': 'Hermes Agent v2026.9.24'},
+        });
+    final status = await RuntimeChannel().hermesStatus();
+    expect(status.running, isFalse);
+    expect(status.result?.ok, isTrue);
+    expect(status.result?.output, contains('v2026.9.24'));
+  });
+
+  test('hermesInstall starts it with the downloaded script', () async {
     messenger.setMockMethodCallHandler(channel, (call) async {
       expect(call.method, 'hermesInstall');
-      return {'ok': true, 'output': 'Hermes Agent v2026.9.24'};
+      expect(call.arguments, {'script': '/files/hermes-install.sh'});
+      return {'started': true};
     });
-    final r = await RuntimeChannel().hermesInstall();
-    expect(r.ok, isTrue);
-    expect(r.output, contains('v2026.9.24'));
+    await RuntimeChannel().hermesInstall(script: '/files/hermes-install.sh');
   });
 }

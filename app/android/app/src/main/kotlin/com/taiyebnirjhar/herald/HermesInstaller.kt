@@ -3,62 +3,69 @@ package com.taiyebnirjhar.herald
 import android.content.Context
 import java.io.File
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * Installs Hermes Agent inside the Linux base (WBS 1.4), at the commit pinned in
- * runtime/HERMES_PIN. The official installer does the work; this runs it under
- * proot with a fake root, writes its output to a log, and checks `hermes --version`.
+ * runtime/HERMES_PIN. The installer script was downloaded in the background
+ * first; this copies it into the guest and runs it as fake root, logging its
+ * output, then checks `hermes --version`. Runs inside [HermesService].
  */
 class HermesInstaller(private val context: Context, private val runtime: ProotRuntime) {
 
     private val rootfs: File get() = runtime.rootfsDir
     private val logFile = File(context.filesDir, "runtime/hermes-install.log")
 
-    @Volatile
-    var running = false
-        private set
-
-    /** Runs the install. Blocks (can take a long time); call off the main thread. */
-    fun install(): Map<String, Any?> {
-        if (running) return mapOf("ok" to false, "error" to "The install is already running.")
+    /** Runs the install from [script]. Blocks (can take a long time); call off the main thread. */
+    fun install(script: File): Map<String, Any?> {
         if (!File(rootfs, "usr/bin/uname").exists()) {
-            return mapOf("ok" to false, "error" to "Install the Linux base first (1.3).")
+            return finish(mapOf("ok" to false, "error" to "Install the Linux base first (1.3)."))
         }
-        running = true
+        synchronized(lock) {
+            if (running) return mapOf("ok" to false, "error" to "The install is already running.")
+            running = true
+            result = null
+        }
         try {
             logFile.parentFile?.mkdirs()
             logFile.writeText("Preparing the install…\n")
             writeResolvConf()
-            downloadInstaller()
-            val result = runtime.runInGuest(
-                command = guestCommand(),
-                fakeRoot = true,
-                logTo = logFile,
-            )
-            if (result["ok"] != true) return result
+            copyScript(script)
+            val install = runtime.runInGuest(command = guestCommand(), fakeRoot = true, logTo = logFile)
+            if (install["ok"] != true) return finish(install)
             val version = runtime.runInGuest(
                 command = listOf("/usr/local/bin/hermes", "--version"),
                 fakeRoot = false,
                 logTo = null,
             )
-            return mapOf(
-                "ok" to (version["ok"] == true),
-                "output" to (version["output"] ?: ""),
-                "error" to version["error"],
+            return finish(
+                mapOf(
+                    "ok" to (version["ok"] == true),
+                    "output" to (version["output"] ?: ""),
+                    "error" to version["error"],
+                ),
             )
         } catch (e: IOException) {
-            return mapOf("ok" to false, "error" to (e.message ?: "The install failed"))
-        } finally {
-            running = false
+            return finish(mapOf("ok" to false, "error" to (e.message ?: "The install failed")))
         }
     }
 
-    /** The last lines of the install log, for the screen. */
+    /** Whether the install is running, the last lines of its log, and its result when done. */
     fun status(): Map<String, Any?> {
         val lines = if (logFile.isFile) logFile.readLines().takeLast(LOG_LINES) else emptyList()
-        return mapOf("running" to running, "log" to lines.joinToString("\n"))
+        val (isRunning, done) = synchronized(lock) { running to result }
+        return buildMap {
+            put("running", isRunning)
+            put("log", lines.joinToString("\n"))
+            if (done != null) put("result", done)
+        }
+    }
+
+    private fun finish(outcome: Map<String, Any?>): Map<String, Any?> {
+        synchronized(lock) {
+            running = false
+            result = outcome
+        }
+        return outcome
     }
 
     // Name resolution inside the guest: Android's DNS isn't in the guest's files.
@@ -69,25 +76,17 @@ class HermesInstaller(private val context: Context, private val runtime: ProotRu
         resolv.writeText("nameserver 1.1.1.1\nnameserver 8.8.8.8\n")
     }
 
-    // The pinned installer (raw file at the pinned commit), so the install
-    // script itself is the one we checked in runtime/HERMES_PIN.
-    private fun downloadInstaller() {
+    private fun copyScript(script: File) {
         val target = File(rootfs, "root/hermes-install.sh")
         target.parentFile?.mkdirs()
-        val conn = URL(PINNED_INSTALLER).openConnection() as HttpURLConnection
-        conn.connectTimeout = 15_000
-        conn.readTimeout = 60_000
-        try {
-            if (conn.responseCode != 200) {
-                throw IOException("The Hermes installer download failed (answered ${conn.responseCode})")
-            }
-            conn.inputStream.use { input -> target.outputStream().use { input.copyTo(it) } }
-        } finally {
-            conn.disconnect()
-        }
+        script.copyTo(target, overwrite = true)
     }
 
     companion object {
+        private val lock = Any()
+        private var running = false
+        private var result: Map<String, Any?>? = null
+
         /** Commit from runtime/HERMES_PIN (tag v2026.9.24). Keep the two in step. */
         const val PIN_COMMIT = "f97608f178d1ffeca59860195ab7da295f7c8e5f"
         const val PINNED_INSTALLER =

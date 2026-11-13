@@ -1,19 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../downloads/background_downloader.dart';
+import '../runtime/hermes_pin.dart';
 import '../runtime/runtime_channel.dart';
+import '../runtime/runtime_image.dart';
 
-/// Debug screen for the Linux runtime spike (WBS 1.2). Shows what the app has
-/// and runs `proot --version`. Owner's phone test; not for players.
+/// Debug screen for the Linux runtime and Hermes (WBS 1.2 to 1.4). Owner's phone
+/// test; not for players. Downloads run in the background; the screen follows them.
 class RuntimeDebugPage extends StatefulWidget {
-  const RuntimeDebugPage({super.key, required this.runtime});
+  const RuntimeDebugPage({super.key, required this.runtime, this.downloader});
 
   final RuntimeChannel runtime;
+
+  /// Downloads go through this. Defaults to the app's background downloader.
+  final BackgroundDownloader? downloader;
 
   @override
   State<RuntimeDebugPage> createState() => _RuntimeDebugPageState();
 }
 
 class _RuntimeDebugPageState extends State<RuntimeDebugPage> {
+  late final BackgroundDownloader _downloader =
+      widget.downloader ?? MethodChannelDownloader();
   Map<String, dynamic> _facts = {};
   String _result = 'Not run yet.';
   bool _running = false;
@@ -22,6 +32,12 @@ class _RuntimeDebugPageState extends State<RuntimeDebugPage> {
   void initState() {
     super.initState();
     _loadFacts();
+  }
+
+  @override
+  void dispose() {
+    widget.runtime.onProgress = null;
+    super.dispose();
   }
 
   Future<void> _loadFacts() async {
@@ -33,19 +49,8 @@ class _RuntimeDebugPageState extends State<RuntimeDebugPage> {
     }
   }
 
-  Future<void> _runProot() async {
-    setState(() {
-      _running = true;
-      _result = 'Running proot --version…';
-    });
-    try {
-      final check = await widget.runtime.prootVersion();
-      setState(() => _result = _describeRun(check));
-    } catch (e) {
-      setState(() => _result = 'FAILED\n$e');
-    } finally {
-      if (mounted) setState(() => _running = false);
-    }
+  void _show(String text) {
+    if (mounted) setState(() => _result = text);
   }
 
   String _describeRun(RunResult check) {
@@ -56,22 +61,54 @@ class _RuntimeDebugPageState extends State<RuntimeDebugPage> {
     return buffer.toString();
   }
 
-  Future<void> _installLinux() async {
-    setState(() {
-      _running = true;
-      _result = 'Starting the install…';
-    });
-    widget.runtime.onProgress = (stage, fraction) {
-      if (mounted) {
-        setState(() => _result = '$stage… ${(fraction * 100).round()}%');
-      }
-    };
+  Future<void> _runProot() async {
+    setState(() => _running = true);
     try {
-      final r = await widget.runtime.installRootfs();
-      setState(() => _result = 'Install: ${_describeRun(r)}');
+      _show(_describeRun(await widget.runtime.prootVersion()));
+    } catch (e) {
+      _show('FAILED\n$e');
+    } finally {
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  /// Downloads [name] in the background, showing its progress, and returns its path.
+  Future<String> _download({
+    required String url,
+    required String name,
+    required String title,
+    bool wifiOnly = false,
+  }) async {
+    await _downloader.start(url: url, name: name, title: title, wifiOnly: wifiOnly);
+    return _downloader.waitFor(
+      name,
+      onProgress: (s) {
+        if (s.state == 'waiting') {
+          _show('$title: waiting for Wi-Fi. The download continues when it is available.');
+        } else if (s.state == 'running') {
+          _show('$title: downloading… ${(s.fraction * 100).round()}%\n'
+              'You can close the app; the download continues.');
+        }
+      },
+    );
+  }
+
+  Future<void> _installLinux() async {
+    setState(() => _running = true);
+    try {
+      final path = await _download(
+        url: RuntimeImage.url,
+        name: RuntimeImage.fileName,
+        title: 'Linux base',
+        wifiOnly: true,
+      );
+      _show('Linux base downloaded. Unpacking…');
+      widget.runtime.onProgress = (stage, f) => _show('$stage… ${(f * 100).round()}%');
+      final r = await widget.runtime.installRootfs(path: path);
+      _show('Install: ${_describeRun(r)}');
       await _loadFacts();
     } catch (e) {
-      setState(() => _result = 'Install FAILED\n$e');
+      _show('Install FAILED\n$e');
     } finally {
       widget.runtime.onProgress = null;
       if (mounted) setState(() => _running = false);
@@ -79,44 +116,45 @@ class _RuntimeDebugPageState extends State<RuntimeDebugPage> {
   }
 
   Future<void> _installHermes() async {
-    setState(() {
-      _running = true;
-      _result = 'Installing Hermes Agent. This can take a long time. Keep the app open and the screen on.';
-    });
-    // Poll the installer's log while it runs.
-    var polling = true;
-    () async {
-      while (polling && mounted) {
-        await Future<void>.delayed(const Duration(seconds: 3));
+    setState(() => _running = true);
+    Timer? poll;
+    try {
+      final script = await _download(
+        url: HermesPin.installerUrl,
+        name: HermesPin.installerFileName,
+        title: 'Hermes installer',
+      );
+      _show('Installing Hermes Agent. This can take a long time. It continues in the background.');
+      await widget.runtime.hermesInstall(script: script);
+      // Poll the installer's log until it finishes.
+      final done = Completer<void>();
+      poll = Timer.periodic(const Duration(seconds: 3), (_) async {
         try {
           final status = await widget.runtime.hermesStatus();
-          if (mounted && polling && status.log.isNotEmpty) {
-            setState(() => _result = 'Installing Hermes…\n\n${status.log}');
+          if (!mounted) return;
+          if (status.running) {
+            _show('Installing Hermes…\n\n${status.log}');
+          } else if (status.result != null) {
+            _show('Hermes install: ${_describeRun(status.result!)}\n\n${status.log}');
+            if (!done.isCompleted) done.complete();
           }
         } catch (_) {}
-      }
-    }();
-    try {
-      final r = await widget.runtime.hermesInstall();
-      setState(() => _result = 'Hermes install: ${_describeRun(r)}');
+      });
+      await done.future;
     } catch (e) {
-      setState(() => _result = 'Hermes install FAILED\n$e');
+      _show('Hermes install FAILED\n$e');
     } finally {
-      polling = false;
+      poll?.cancel();
       if (mounted) setState(() => _running = false);
     }
   }
 
   Future<void> _runUname() async {
-    setState(() {
-      _running = true;
-      _result = 'Running uname -a inside Linux…';
-    });
+    setState(() => _running = true);
     try {
-      final r = await widget.runtime.runUname();
-      setState(() => _result = 'uname -a: ${_describeRun(r)}');
+      _show('uname -a: ${_describeRun(await widget.runtime.runUname())}');
     } catch (e) {
-      setState(() => _result = 'uname FAILED\n$e');
+      _show('uname FAILED\n$e');
     } finally {
       if (mounted) setState(() => _running = false);
     }

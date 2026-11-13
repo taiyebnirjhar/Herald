@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:herald/update/app_installer.dart';
 import 'package:herald/update/update_controller.dart';
 import 'package:herald/update/update_service.dart';
+import '../downloads/fake_downloader.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -64,6 +65,7 @@ void main() {
       UpdateController(
         service: UpdateService(
           client: MockClient((r) => _github(r, tag: tag, sha: sha, apkStatus: apkStatus)),
+          downloader: FakeDownloader(dir: dir, bytes: _apk),
           downloadsDir: () async => dir,
         ),
         installer: installer ?? _Installer(),
@@ -80,6 +82,7 @@ void main() {
     final c = UpdateController(
       service: UpdateService(
         client: MockClient((_) async => http.Response('', 404)),
+        downloader: FakeDownloader(dir: dir, bytes: _apk),
         downloadsDir: () async => dir,
       ),
       installer: _ThrowingVersionInstaller(),
@@ -152,6 +155,7 @@ void main() {
           if (r.url.path.endsWith('.sha256')) return http.Response('', 404);
           return _github(r);
         }),
+        downloader: FakeDownloader(dir: dir, bytes: _apk),
         downloadsDir: () async => dir,
       ),
       installer: _Installer(),
@@ -193,14 +197,11 @@ void main() {
     expect(c.step, UpdateStep.idle);
   });
 
-  test('a failed download request is reported with its status', () async {
+  test('a failed background download is reported with its reason', () async {
     final c = UpdateController(
       service: UpdateService(
-        client: MockClient((r) async {
-          if (r.url.path.endsWith('.sha256')) return http.Response('$_sha  x\n', 200);
-          if (r.url.path.contains('/download/')) return http.Response('', 500);
-          return _github(r);
-        }),
+        client: MockClient((r) => _github(r)),
+        downloader: FakeDownloader(dir: dir, failWith: 'Download failed (code 500)'),
         downloadsDir: () async => dir,
       ),
       installer: _Installer(),
@@ -209,7 +210,7 @@ void main() {
     await c.checkForUpdate();
     await c.downloadAndInstall();
     expect(c.step, UpdateStep.failed);
-    expect(c.message, contains('GitHub answered 500'));
+    expect(c.message, contains('code 500'));
   });
 }
 

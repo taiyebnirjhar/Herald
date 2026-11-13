@@ -16,7 +16,15 @@ class RunResult {
       );
 }
 
-/// The Linux runtime pieces, as the Android side reports them (WBS 1.2, 1.3).
+/// Whether the Hermes install is running, its log so far, and its result when done.
+class HermesStatus {
+  const HermesStatus({required this.running, required this.log, this.result});
+  final bool running;
+  final String log;
+  final RunResult? result;
+}
+
+/// The Linux runtime pieces, as the Android side reports them (WBS 1.2 to 1.4).
 class RuntimeChannel {
   RuntimeChannel([MethodChannel? channel])
       : _channel = channel ?? const MethodChannel(_name) {
@@ -26,7 +34,7 @@ class RuntimeChannel {
   static const _name = 'herald/runtime';
   final MethodChannel _channel;
 
-  /// Set this to see the install's progress: a stage name and its fraction (0–1).
+  /// Set this to see the progress of an unpack: a stage name and its fraction (0–1).
   void Function(String stage, double fraction)? onProgress;
 
   Future<dynamic> _onNativeCall(MethodCall call) async {
@@ -48,11 +56,14 @@ class RuntimeChannel {
             await _channel.invokeMapMethod<String, dynamic>('prootVersion') ?? {}),
       );
 
-  /// Unpacks the Linux base system bundled in the app (or downloads it, in builds
-  /// without the bundled copy). Can take a few minutes; see [onProgress].
-  Future<RunResult> installRootfs() async => RunResult.fromMap(Map<String, dynamic>.from(
-        await _channel.invokeMapMethod<String, dynamic>('installRootfs') ?? {},
-      ));
+  /// Unpacks the downloaded Linux base system at [path]. Can take minutes; see [onProgress].
+  Future<RunResult> installRootfs({required String path}) async => RunResult.fromMap(
+        Map<String, dynamic>.from(
+          await _channel.invokeMapMethod<String, dynamic>(
+                  'installRootfs', {'path': path}) ??
+              {},
+        ),
+      );
 
   /// `uname -a` inside the Linux base system.
   Future<RunResult> runUname() async => RunResult.fromMap(
@@ -60,16 +71,22 @@ class RuntimeChannel {
             await _channel.invokeMapMethod<String, dynamic>('runUname') ?? {}),
       );
 
-  /// Installs Hermes Agent in the Linux base (WBS 1.4). Can take a long time;
-  /// poll [hermesStatus] for the log while it runs.
-  Future<RunResult> hermesInstall() async => RunResult.fromMap(Map<String, dynamic>.from(
-        await _channel.invokeMapMethod<String, dynamic>('hermesInstall') ?? {},
-      ));
+  /// Starts the Hermes install with the downloaded installer at [script]. It runs
+  /// in a foreground service; poll [hermesStatus] for its progress.
+  Future<void> hermesInstall({required String script}) async {
+    await _channel.invokeMapMethod<String, dynamic>('hermesInstall', {'script': script});
+  }
 
-  /// Whether the install is running, and the last lines of its log.
-  Future<({bool running, String log})> hermesStatus() async {
+  Future<HermesStatus> hermesStatus() async {
     final map = Map<String, dynamic>.from(
         await _channel.invokeMapMethod<String, dynamic>('hermesStatus') ?? {});
-    return (running: map['running'] == true, log: map['log'] as String? ?? '');
+    final result = map['result'];
+    return HermesStatus(
+      running: map['running'] == true,
+      log: map['log'] as String? ?? '',
+      result: result is Map
+          ? RunResult.fromMap(Map<String, dynamic>.from(result))
+          : null,
+    );
   }
 }

@@ -8,6 +8,11 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         UpdateChannel(applicationContext).register(flutterEngine)
         val runtime = ProotRuntime(applicationContext)
-        RuntimeChannel(runtime, HermesInstaller(applicationContext, runtime)).register(flutterEngine)
+        RuntimeChannel(
+            runtime = runtime,
+            hermes = HermesInstaller(applicationContext, runtime),
+            downloads = BackgroundDownloads(applicationContext),
+            service = { script -> HermesService.start(applicationContext, script) },
+        ).register(flutterEngine)
     }
 }
