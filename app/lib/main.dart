@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import 'debug/runtime_debug_page.dart';
+import 'setup/setup_page.dart';
 import 'runtime/runtime_channel.dart';
 import 'update/app_installer.dart';
 import 'update/update_controller.dart';
@@ -162,7 +162,7 @@ class _TopBar extends StatelessWidget {
           // Phase 1 debug: the runtime check. The real menu comes later.
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => RuntimeDebugPage(runtime: RuntimeChannel()),
+              builder: (_) => SetupPage(runtime: RuntimeChannel()),
             ),
           ),
         ),
