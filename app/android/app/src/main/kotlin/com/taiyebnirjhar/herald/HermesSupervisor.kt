@@ -6,38 +6,49 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
 
+/** The two Hermes engines and the port each one listens on on 127.0.0.1. */
+enum class Engine(val port: Int) {
+    DASHBOARD(9119),
+    GATEWAY(8642),
+}
+
 /**
- * Keeps Hermes's dashboard running (WBS 4.2 to 4.4): starts it inside the Linux
- * base, checks that it answers on 127.0.0.1:9119, and restarts it with backoff
- * if it stops. Hermes listens on loopback only (PLAN.md D7).
+ * Keeps one Hermes engine running (WBS 4.2 to 4.4): starts it inside the Linux base,
+ * checks that it answers on 127.0.0.1, and restarts it with backoff if it stops.
+ * Hermes listens on loopback only (PLAN.md D7).
+ *
+ * Two engines exist:
+ * - [Engine.GATEWAY]: the API server the native chat talks to (WBS 6.2). This is the default now.
+ * - [Engine.DASHBOARD]: Hermes's own web UI, shown in the optional web screen (WBS 6.1).
+ * Only one runs at a time.
  */
 class HermesSupervisor(private val context: Context, private val runtime: ProotRuntime) {
 
     private val logFile = File(context.filesDir, "runtime/hermes-run.log")
 
     /** Starts the supervisor loop on its own thread. Does nothing if it is already running. */
-    fun start() {
+    fun start(engine: Engine = Engine.GATEWAY) {
         synchronized(lock) {
             if (running) return
             running = true
             stopRequested = false
         }
-        Thread({ loop() }, "hermes-supervisor").start()
+        Thread({ loop(engine) }, "hermes-supervisor").start()
     }
 
     /** Stops Hermes and the loop. */
     fun stop() = requestStop()
 
-    private fun loop() {
+    private fun loop(engine: Engine) {
         val backoff = RestartBackoff()
         try {
             while (!stopRequested) {
                 setPhase(Phase.STARTING, "Starting Hermes…")
                 logFile.parentFile?.mkdirs()
                 val started = System.currentTimeMillis()
-                val child = runtime.startInGuest(dashboardCommand(installedWebDist()), logFile)
+                val child = runtime.startInGuest(commandFor(engine), logFile)
                 synchronized(lock) { process = child }
-                val health = Thread({ watchHealth(child) }, "hermes-health").apply { isDaemon = true }
+                val health = Thread({ watchHealth(child, engine.port) }, "hermes-health").apply { isDaemon = true }
                 health.start()
 
                 val code = child.waitFor()
@@ -65,11 +76,17 @@ class HermesSupervisor(private val context: Context, private val runtime: ProotR
         }
     }
 
-    /** Checks the dashboard port while [child] runs and reports ready or not. */
-    private fun watchHealth(child: Process) {
+    /** The command for [engine]. The gateway needs the API key, which only this app holds. */
+    private fun commandFor(engine: Engine): List<String> = when (engine) {
+        Engine.DASHBOARD -> dashboardCommand(installedWebDist())
+        Engine.GATEWAY -> gatewayCommand(ApiKey.load(context))
+    }
+
+    /** Checks the engine's port while [child] runs and reports ready or not. */
+    private fun watchHealth(child: Process, port: Int) {
         try {
             while (child.isAlive) {
-                val answering = answers()
+                val answering = answers(port)
                 if (answering && phase != Phase.READY) setPhase(Phase.READY, "Hermes is running.")
                 if (!answering && phase == Phase.READY) setPhase(Phase.STARTING, "Hermes is not answering yet…")
                 Thread.sleep(HEALTH_EVERY_MS)
@@ -83,8 +100,8 @@ class HermesSupervisor(private val context: Context, private val runtime: ProotR
     private fun installedWebDist(): String? =
         if (File(runtime.rootfsDir, "$WEB_DIST_IN_GUEST/index.html").exists()) WEB_DIST_IN_GUEST else null
 
-    private fun answers(): Boolean = try {
-        Socket().use { it.connect(InetSocketAddress(HOST, PORT), 1_000) }
+    private fun answers(port: Int): Boolean = try {
+        Socket().use { it.connect(InetSocketAddress(HOST, port), 1_000) }
         true
     } catch (_: IOException) {
         false
@@ -105,9 +122,9 @@ class HermesSupervisor(private val context: Context, private val runtime: ProotR
 
     companion object {
         const val HOST = "127.0.0.1"
-        const val PORT = 9119
         private const val HEALTH_EVERY_MS = 2_000L
         private const val HEALTHY_AFTER_MS = 60_000L
+        private const val CLEAN_PATH = "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
         private val lock = Any()
         private var running = false
@@ -150,15 +167,31 @@ class HermesSupervisor(private val context: Context, private val runtime: ProotR
             add("/usr/bin/env")
             add("-i")
             add("HOME=/root")
-            add("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+            add(CLEAN_PATH)
             add("LANG=C.UTF-8")
             if (webDist != null) add("HERMES_WEB_DIST=$webDist")
             addAll(
                 listOf(
                     "/usr/local/bin/hermes", "dashboard",
-                    "--host", HOST, "--port", PORT.toString(), "--no-open",
+                    "--host", HOST, "--port", Engine.DASHBOARD.port.toString(), "--no-open",
                 ),
             )
+        }
+
+        /**
+         * The API server (the native chat talks to it), with a clean environment. It listens
+         * on loopback only and asks for [apiKey] on every request.
+         */
+        fun gatewayCommand(apiKey: String): List<String> = buildList {
+            add("/usr/bin/env")
+            add("-i")
+            add("HOME=/root")
+            add(CLEAN_PATH)
+            add("LANG=C.UTF-8")
+            add("API_SERVER_HOST=$HOST")
+            add("API_SERVER_PORT=${Engine.GATEWAY.port}")
+            add("API_SERVER_KEY=$apiKey")
+            addAll(listOf("/usr/local/bin/hermes", "gateway", "run"))
         }
     }
 }
