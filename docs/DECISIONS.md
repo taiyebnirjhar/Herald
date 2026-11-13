@@ -73,3 +73,13 @@ Each entry: date, decision, reason. Plan-level decisions D1–D7 are in PLAN.md 
   latest stage line and the step.
 - Byte-level progress for these is not built yet. Planned: parse the installer's progress lines, or run the
   package steps through a counted download. Owner to be told when this changes.
+
+## Battery: keep Hermes running (WBS 4.6)
+
+- The app asks Android to allow it to run in the background (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`). Android
+  shows its own question once; the app shows whether the answer is yes.
+- Samsung's battery screen is tried first (`com.samsung.android.lool`). We have not confirmed this component on
+  the Galaxy M14, so if it is missing the app falls back to Android's battery list, then Herald's app page.
+  Owner to report which screen opens on the phone; the plain steps on the screen cover the rest.
+- `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` is restricted on Google Play. Herald is installed from GitHub
+  Releases, not Play, so this does not apply to v1.

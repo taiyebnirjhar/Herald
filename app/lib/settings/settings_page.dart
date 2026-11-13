@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../battery/battery_page.dart';
 import '../runtime/hermes_pin.dart';
 import '../ui/herald_look.dart';
 import '../update/app_installer.dart';
@@ -178,6 +179,17 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     value: _bootStart,
                     onChanged: _setBootStart,
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Keep Hermes running'),
+                    subtitle: const _Note(
+                      'Battery settings, so Android does not stop Herald when the screen is off.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const BatteryPage()),
+                    ),
                   ),
                 ],
               ),
