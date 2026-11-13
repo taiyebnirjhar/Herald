@@ -57,6 +57,13 @@ void main() {
       expect(u.notes, 'Faster start');
     });
 
+    test('release notes lose their Markdown symbols', () {
+      final u = AppUpdate.fromReleaseJson(_release(
+        body: "## What's Changed\n* Faster start by @someone in #12\n- Fixed the menu",
+      ))!;
+      expect(u.notes, "What's Changed\nFaster start by @someone in #12\nFixed the menu");
+    });
+
     test('ignores a release with no version tag', () {
       expect(AppUpdate.fromReleaseJson(_release(tag: 'nightly')), isNull);
     });

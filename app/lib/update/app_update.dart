@@ -90,11 +90,11 @@ class AppUpdate {
   }
 
   static String _shortNotes(String text) {
-    // Keep the first few lines that say something; drop the boilerplate links.
+    // The first few lines that say something, without Markdown symbols.
     final lines = text
         .split('\n')
-        .map((l) => l.trim())
-        .where((l) => l.isNotEmpty && !l.startsWith('**Full Changelog'))
+        .map((l) => l.trim().replaceFirst(RegExp(r'^#+\s*'), '').replaceFirst(RegExp(r'^[*-]\s+'), ''))
+        .where((l) => l.isNotEmpty && !l.contains('Full Changelog'))
         .take(4)
         .toList();
     return lines.join('\n');

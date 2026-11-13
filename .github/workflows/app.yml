@@ -143,6 +143,3 @@ jobs:
           files: release/*.apk
           generate_release_notes: true
           fail_on_unmatched_files: true
-          body: |
-            Install on Android (arm64 phones). See the README for the one-time phone steps.
-            Signed with the Herald release key. Updates install over the previous version.
