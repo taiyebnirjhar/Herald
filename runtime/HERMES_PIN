@@ -1,1 +1,6 @@
-# Hermes pin: set in Phase 1 (WBS 1.4). Commit SHA of NousResearch/hermes-agent.
+# Hermes Agent pin (PLAN.md D3). Never run `hermes update` on the phone.
+# Source: https://github.com/NousResearch/hermes-agent
+# Tag v2026.9.24 (newest stable tag when pinned, 2026-11-13).
+repo=https://github.com/NousResearch/hermes-agent
+tag=v2026.9.24
+commit=f97608f178d1ffeca59860195ab7da295f7c8e5f
