@@ -6,7 +6,32 @@ Status figures are counted against the 65 WBS tasks in `PLAN.md` section 4. A ta
 
 ---
 
-## 2026-11-13
+## 2026-11-13 (later)
+
+### Decisions (owner's direction, recorded here)
+- **Goal:** run the Hermes agent from the Herald app, and expose what Hermes can do. Herald is a wrapper around Hermes; Hermes is the engine and no agent logic is written in Herald.
+- **The first stable version has a native Grok/Muse-style interface** (dark, greeting, chips, streamed chat). The web UI stays as an optional screen, not the main one.
+- **Two-day target** for a first usable version: Hermes running, native chat, one API key. Owner: "Dont stop work. Make first stable version."
+- **The native chat talks to Hermes's API server** (`/v1/chat/completions`, streaming, on 127.0.0.1:8642). It runs as `hermes gateway run` with a key made on the phone (at least 16 characters, kept in the app's private folder).
+- **Providers for the first version:** OpenRouter, Google Gemini and xAI (Grok). Keys are saved by Hermes's own `config set`, into its `.env`.
+- **Claude subscription (noted, not built):** Hermes supports it through `claude setup-token` (needs the Claude Code CLI) or its own browser login (OAuth). Terms for third-party use are not checked yet; check before building it.
+- **WordPress is dropped.** The owner's site is Next.js. SEO publishing is not in the current scope.
+- **Phase gate:** the owner said to keep building through all phases. This is recorded as the owner's go-ahead past Phase 1. The 30-minute lock-screen test and the Hermes install still need the phone.
+- **Testing:** this machine runs Flutter and Kotlin tests (Flutter 3.47.9, Android SDK 36). No Android emulator (no hardware virtualisation here). Real-phone tests are the owner's.
+
+### Fixes (later)
+- **Dashboard rebuilt its web UI on every start, which fails on the phone (no npm).** The supervisor now sets `HERMES_WEB_DIST` when the built UI is in the Linux base. PR #15, commit `384cf94`.
+- **PR #8 lock file had two `sdks:` blocks** (fixed earlier, commit `4595e5b`); the CI check that caught it is now run locally before pushing.
+
+### Changes (later)
+- PR #7, #8, #12: merged by the owner (supervisor, chat WebView, battery screen).
+- PR #14: boot start (4.5). Starts Hermes after restart when the switch is on. Owner to merge.
+- PR #15: dashboard uses the installed web UI (fix). Open.
+- PR #16: engine: the API server runs for the native chat; key made on the phone. Open.
+- PR #17: native chat client (streams from the API server; 8 tests). Open.
+- PR #18: native chat screen, Grok/Muse style (5 widget tests; bottom chat icon opens it). Open.
+- PR #19: provider keys (OpenRouter, Gemini, xAI), Settings > AI (134 Flutter tests, 40 Kotlin tests). Open.
+- Release `v0.2.0` built from the chain (branch `feat/5.2-provider-keys`), for testing on the phone. Not a stable release yet.
 
 ### Status snapshot
 - About 33% of the plan by task count (21.5 of 65). Phase 0: 6/6. Phase 1: 3.5/6. Phase 2: 2/6. Phase 3: 4.5/6. Phase 4: 3.5/8. Phase 5: 1.5/6. Phase 6: 0.5/5. Phases 7 to 11: not started.
