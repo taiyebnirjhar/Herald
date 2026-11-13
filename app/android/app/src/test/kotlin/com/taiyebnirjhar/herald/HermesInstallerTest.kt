@@ -26,4 +26,12 @@ class HermesInstallerTest {
     fun theDownloadIsTheCheckedInPin() {
         assertTrue(HermesInstaller.PINNED_INSTALLER.endsWith("/${HermesInstaller.PIN_COMMIT}/scripts/install.sh"))
     }
+
+    @Test
+    fun theBaseImageGetsTheToolsTheInstallerNeeds() {
+        val command = HermesInstaller.aptCommand().joinToString(" ")
+        assertTrue(command.contains("apt-get install"))
+        assertTrue(command.contains("curl"))
+        assertTrue(command.contains("git"))
+    }
 }

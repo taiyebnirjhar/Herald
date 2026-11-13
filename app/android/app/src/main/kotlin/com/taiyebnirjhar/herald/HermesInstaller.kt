@@ -30,6 +30,9 @@ class HermesInstaller(private val context: Context, private val runtime: ProotRu
             logFile.writeText("Preparing the install…\n")
             writeResolvConf()
             copyScript(script)
+            // The base image is minimal: the installer needs curl, git and certificates.
+            val tools = runtime.runInGuest(command = aptCommand(), fakeRoot = true, logTo = logFile)
+            if (tools["ok"] != true) return finish(tools)
             val install = runtime.runInGuest(command = guestCommand(), fakeRoot = true, logTo = logFile)
             if (install["ok"] != true) return finish(install)
             val version = runtime.runInGuest(
@@ -92,6 +95,16 @@ class HermesInstaller(private val context: Context, private val runtime: ProotRu
         const val PINNED_INSTALLER =
             "https://raw.githubusercontent.com/NousResearch/hermes-agent/$PIN_COMMIT/scripts/install.sh"
         const val LOG_LINES = 40
+
+        /** Installs the tools the Hermes installer needs (curl, git, certificates), in the guest. */
+        fun aptCommand(): List<String> = listOf(
+            "/usr/bin/env", "-i",
+            "HOME=/root",
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "DEBIAN_FRONTEND=noninteractive",
+            "/bin/sh", "-c",
+            "apt-get update && apt-get install -y --no-install-recommends curl git ca-certificates xz-utils",
+        )
 
         /** The installer command, with a clean environment, run inside the guest. */
         fun guestCommand(): List<String> = listOf(
