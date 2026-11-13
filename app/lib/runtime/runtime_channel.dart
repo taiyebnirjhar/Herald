@@ -19,10 +19,26 @@ class RunResult {
 /// The Linux runtime pieces, as the Android side reports them (WBS 1.2, 1.3).
 class RuntimeChannel {
   RuntimeChannel([MethodChannel? channel])
-      : _channel = channel ?? const MethodChannel(_name);
+      : _channel = channel ?? const MethodChannel(_name) {
+    _channel.setMethodCallHandler(_onNativeCall);
+  }
 
   static const _name = 'herald/runtime';
   final MethodChannel _channel;
+
+  /// Set this to see the install's progress: a stage name and its fraction (0–1).
+  void Function(String stage, double fraction)? onProgress;
+
+  Future<dynamic> _onNativeCall(MethodCall call) async {
+    if (call.method == 'progress') {
+      final args = Map<String, dynamic>.from(call.arguments as Map);
+      onProgress?.call(
+        args['stage'] as String,
+        (args['fraction'] as num).toDouble(),
+      );
+    }
+    return null;
+  }
 
   Future<Map<String, dynamic>> describe() async =>
       Map<String, dynamic>.from(await _channel.invokeMapMethod<String, dynamic>('describe') ?? {});
@@ -32,12 +48,10 @@ class RuntimeChannel {
             await _channel.invokeMapMethod<String, dynamic>('prootVersion') ?? {}),
       );
 
-  /// Downloads, checks and unpacks the Linux base system. Can take minutes.
-  Future<RunResult> installRootfs({required String url, required String sha256}) async =>
-      RunResult.fromMap(Map<String, dynamic>.from(
-        await _channel.invokeMapMethod<String, dynamic>(
-                'installRootfs', {'url': url, 'sha256': sha256}) ??
-            {},
+  /// Unpacks the Linux base system bundled in the app (or downloads it, in builds
+  /// without the bundled copy). Can take a few minutes; see [onProgress].
+  Future<RunResult> installRootfs() async => RunResult.fromMap(Map<String, dynamic>.from(
+        await _channel.invokeMapMethod<String, dynamic>('installRootfs') ?? {},
       ));
 
   /// `uname -a` inside the Linux base system.

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../runtime/runtime_channel.dart';
-import '../runtime/runtime_image.dart';
 
 /// Debug screen for the Linux runtime spike (WBS 1.2). Shows what the app has
 /// and runs `proot --version`. Owner's phone test; not for players.
@@ -60,18 +59,21 @@ class _RuntimeDebugPageState extends State<RuntimeDebugPage> {
   Future<void> _installLinux() async {
     setState(() {
       _running = true;
-      _result = 'Downloading and checking the Linux base system. This can take a few minutes…';
+      _result = 'Starting the install…';
     });
+    widget.runtime.onProgress = (stage, fraction) {
+      if (mounted) {
+        setState(() => _result = '$stage… ${(fraction * 100).round()}%');
+      }
+    };
     try {
-      final r = await widget.runtime.installRootfs(
-        url: RuntimeImage.url,
-        sha256: RuntimeImage.sha256,
-      );
+      final r = await widget.runtime.installRootfs();
       setState(() => _result = 'Install: ${_describeRun(r)}');
       await _loadFacts();
     } catch (e) {
       setState(() => _result = 'Install FAILED\n$e');
     } finally {
+      widget.runtime.onProgress = null;
       if (mounted) setState(() => _running = false);
     }
   }

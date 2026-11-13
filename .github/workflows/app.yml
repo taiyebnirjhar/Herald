@@ -94,6 +94,14 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "Version name: $NAME, build number: $GITHUB_RUN_NUMBER"
 
+      - name: Put the Linux base image into the app (checked by hash)
+        run: |
+          set -euo pipefail
+          DEST=android/app/src/main/assets/runtime/linux-base.bin
+          mkdir -p "$(dirname "$DEST")"
+          curl -sSfL -o "$DEST" https://github.com/taiyebnirjhar/Herald/releases/download/runtime-v0.0.1/debian-trixie-arm64.tar.gz
+          echo "4802af3f826731048ac47da5026eab2aee08b482fc42752ee57720ddb53a0b05  $DEST" | sha256sum -c -
+
       - name: Build release APK (arm64 only)
         run: >
           flutter build apk --release --target-platform android-arm64

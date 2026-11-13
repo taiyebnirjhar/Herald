@@ -52,6 +52,11 @@ android {
         }
     }
 
+    // The Linux base image is bundled as-is (already compressed), so it can be read directly.
+    androidResources {
+        noCompress += listOf("gz")
+    }
+
     // The proot pieces (runtime/proot/) are native libraries. They are extracted to the
     // app's native library folder, where Android allows them to run.
     sourceSets {
