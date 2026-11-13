@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../runtime/runtime_channel.dart';
+import '../runtime/runtime_image.dart';
 
 /// Debug screen for the Linux runtime spike (WBS 1.2). Shows what the app has
 /// and runs `proot --version`. Owner's phone test; not for players.
@@ -40,13 +41,51 @@ class _RuntimeDebugPageState extends State<RuntimeDebugPage> {
     });
     try {
       final check = await widget.runtime.prootVersion();
-      final buffer = StringBuffer(check.ok ? 'OK' : 'FAILED');
-      if (check.exitCode != null) buffer.write(' (exit code ${check.exitCode})');
-      if (check.error != null) buffer.write('\n${check.error}');
-      if (check.output.isNotEmpty) buffer.write('\n\n${check.output}');
-      setState(() => _result = buffer.toString());
+      setState(() => _result = _describeRun(check));
     } catch (e) {
       setState(() => _result = 'FAILED\n$e');
+    } finally {
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  String _describeRun(RunResult check) {
+    final buffer = StringBuffer(check.ok ? 'OK' : 'FAILED');
+    if (check.exitCode != null) buffer.write(' (exit code ${check.exitCode})');
+    if (check.error != null) buffer.write('\n${check.error}');
+    if (check.output.isNotEmpty) buffer.write('\n\n${check.output}');
+    return buffer.toString();
+  }
+
+  Future<void> _installLinux() async {
+    setState(() {
+      _running = true;
+      _result = 'Downloading and checking the Linux base system. This can take a few minutes…';
+    });
+    try {
+      final r = await widget.runtime.installRootfs(
+        url: RuntimeImage.url,
+        sha256: RuntimeImage.sha256,
+      );
+      setState(() => _result = 'Install: ${_describeRun(r)}');
+      await _loadFacts();
+    } catch (e) {
+      setState(() => _result = 'Install FAILED\n$e');
+    } finally {
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
+  Future<void> _runUname() async {
+    setState(() {
+      _running = true;
+      _result = 'Running uname -a inside Linux…';
+    });
+    try {
+      final r = await widget.runtime.runUname();
+      setState(() => _result = 'uname -a: ${_describeRun(r)}');
+    } catch (e) {
+      setState(() => _result = 'uname FAILED\n$e');
     } finally {
       if (mounted) setState(() => _running = false);
     }
@@ -71,6 +110,16 @@ class _RuntimeDebugPageState extends State<RuntimeDebugPage> {
           FilledButton(
             onPressed: _running ? null : _runProot,
             child: Text(_running ? 'Running…' : 'Run proot --version'),
+          ),
+          const SizedBox(height: 10),
+          FilledButton(
+            onPressed: _running ? null : _installLinux,
+            child: const Text('Install Linux base (1.3)'),
+          ),
+          const SizedBox(height: 10),
+          FilledButton(
+            onPressed: _running ? null : _runUname,
+            child: const Text('Run uname -a in Linux'),
           ),
           const SizedBox(height: 16),
           const Text('Result', style: TextStyle(fontWeight: FontWeight.w700)),

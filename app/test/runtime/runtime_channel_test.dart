@@ -52,4 +52,36 @@ void main() {
     final check = await RuntimeChannel().prootVersion();
     expect(check.ok, isFalse);
   });
+
+  test('installRootfs sends the address and the compiled-in checksum', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'installRootfs');
+      expect(call.arguments, {'url': 'https://example.test/x.tar.gz', 'sha256': 'abc'});
+      return {'ok': true, 'path': '/data/runtime/debian'};
+    });
+    final r = await RuntimeChannel().installRootfs(
+      url: 'https://example.test/x.tar.gz',
+      sha256: 'abc',
+    );
+    expect(r.ok, isTrue);
+  });
+
+  test('installRootfs shows the reason when the checksum fails', () async {
+    messenger.setMockMethodCallHandler(channel, (_) async => {
+          'ok': false,
+          'error': "The Linux image didn't pass the safety check",
+        });
+    final r = await RuntimeChannel().installRootfs(url: 'u', sha256: 'x');
+    expect(r.ok, isFalse);
+    expect(r.error, contains('safety check'));
+  });
+
+  test('runUname reads the output', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'runUname');
+      return {'ok': true, 'exitCode': 0, 'output': 'Linux herald 6.1 aarch64 GNU/Linux'};
+    });
+    final r = await RuntimeChannel().runUname();
+    expect(r.output, contains('aarch64'));
+  });
 }
