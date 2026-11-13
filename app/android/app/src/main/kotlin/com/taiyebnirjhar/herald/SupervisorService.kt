@@ -48,6 +48,7 @@ class SupervisorService : Service() {
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle("Herald")
             .setContentText(text)
+            .setContentIntent(Routes.pendingIntent(this, Routes.CHAT))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .build()
