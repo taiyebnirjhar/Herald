@@ -109,7 +109,13 @@ class HermesInstaller(private val context: Context, private val runtime: ProotRu
             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             "DEBIAN_FRONTEND=noninteractive",
             "/bin/sh", "-c",
-            "apt-get update && apt-get install -y --no-install-recommends curl git ca-certificates xz-utils",
+            // A stopped earlier install can leave dpkg half-done and leftover files that block it.
+            // Clear those, make the package folders writable, finish the interrupted configure,
+            // then install the tools.
+            "rm -f /var/lib/dpkg/status-old /var/lib/dpkg/status-new /var/lib/dpkg/lock* /var/cache/apt/archives/lock; " +
+                "chmod -R u+rwX /var/lib/dpkg /var/cache/apt /var/lib/apt 2>/dev/null; " +
+                "dpkg --configure -a || true; " +
+                "apt-get update && apt-get install -y --no-install-recommends curl git ca-certificates xz-utils",
         )
 
         /** The installer command, with a clean environment, run inside the guest. */
