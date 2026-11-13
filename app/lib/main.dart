@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'chat/engine_connection.dart';
@@ -21,6 +22,14 @@ import 'welcome/welcome_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Draw behind the status bar, like most apps: no empty band at the top. The screens
+  // keep their content below the bar with SafeArea. Icons are dark for the light look.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarColor: Colors.transparent,
+  ));
   final store = SharedPrefsStore(await SharedPreferences.getInstance());
   final showWelcome = !await WelcomeStore(store).isSeen();
   final installer = MethodChannelAppInstaller();
