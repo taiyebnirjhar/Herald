@@ -8,8 +8,8 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         UpdateChannel(applicationContext).register(flutterEngine)
         BatteryChannel(applicationContext).register(flutterEngine)
-        EngineChannel(applicationContext).register(flutterEngine)
         val runtime = ProotRuntime(applicationContext)
+        EngineChannel(applicationContext, runtime).register(flutterEngine)
         RuntimeChannel(
             runtime = runtime,
             hermes = HermesInstaller(applicationContext, runtime),

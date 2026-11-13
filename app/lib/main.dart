@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'chat/chat_page.dart';
+import 'chat/native_chat_page.dart';
 import 'setup/setup_page.dart';
 import 'runtime/runtime_channel.dart';
 import 'settings/app_settings.dart';
@@ -300,7 +300,9 @@ class _BottomBar extends StatelessWidget {
             icon: Icons.chat_bubble_outline_rounded,
             tooltip: 'Chat',
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ChatPage()),
+              MaterialPageRoute(
+                builder: (_) => NativeChatPage(startHermes: RuntimeChannel().startHermes),
+              ),
             ),
           ),
           Container(
