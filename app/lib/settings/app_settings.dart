@@ -30,7 +30,7 @@ class AppSettings {
 
   Future<void> setWifiOnly(bool value) => _store.setBool(wifiOnlyKey, value);
 
-  /// Takes effect once the background service exists (WBS 4.5).
+  /// Read by BootReceiver.kt after a restart (WBS 4.5). Key and default must match.
   Future<bool> bootStart() async => await _store.getBool(bootStartKey) ?? true;
 
   Future<void> setBootStart(bool value) => _store.setBool(bootStartKey, value);

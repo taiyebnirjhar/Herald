@@ -174,8 +174,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Start after the phone restarts'),
                     subtitle: const _Note(
-                      'Brings the agent back after a restart. Takes effect '
-                      'once the background service is added.',
+                      'Starts Hermes again after a restart, once Hermes is '
+                      'installed. Turn it off to keep Hermes stopped after a restart.',
                     ),
                     value: _bootStart,
                     onChanged: _setBootStart,
