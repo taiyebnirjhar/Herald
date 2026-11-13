@@ -1,0 +1,52 @@
+package com.taiyebnirjhar.herald
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
+import org.junit.Test
+
+class HermesSupervisorTest {
+    @Test
+    fun theRestartWaitDoublesThenGivesUpAfterFiveTries() {
+        val b = RestartBackoff()
+        val waits = List(5) { b.next() }
+        assertEquals(listOf(2_000L, 4_000L, 8_000L, 16_000L, 32_000L), waits)
+        assertTrue(b.giveUp)
+        assertThrows(IllegalStateException::class.java) { b.next() }
+    }
+
+    @Test
+    fun theWaitNeverGoesPastOneMinute() {
+        val b = RestartBackoff(maxAttempts = 10)
+        var last = 0L
+        repeat(10) { last = b.next() }
+        assertEquals(60_000L, last)
+    }
+
+    @Test
+    fun resetStartsTheCountAgain() {
+        val b = RestartBackoff()
+        b.next()
+        b.reset()
+        assertFalse(b.giveUp)
+        assertEquals(2_000L, b.next())
+    }
+
+    @Test
+    fun hermesListensOnLoopbackOnlyAndNeverOnAllInterfaces() {
+        val command = HermesSupervisor.dashboardCommand().joinToString(" ")
+        assertTrue(command.contains("--host 127.0.0.1"))
+        assertTrue(command.contains("--port 9119"))
+        assertFalse(command.contains("0.0.0.0"))
+        assertTrue(command.endsWith("--no-open"))
+    }
+
+    @Test
+    fun theDashboardRunsWithACleanEnvironment() {
+        val command = HermesSupervisor.dashboardCommand()
+        assertEquals("/usr/bin/env", command[0])
+        assertEquals("-i", command[1])
+        assertTrue(command.contains("/usr/local/bin/hermes"))
+    }
+}

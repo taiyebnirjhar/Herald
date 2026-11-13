@@ -13,6 +13,7 @@ class MainActivity : FlutterActivity() {
             hermes = HermesInstaller(applicationContext, runtime),
             downloads = BackgroundDownloads(applicationContext),
             service = { script -> HermesService.start(applicationContext, script) },
+            startSupervisor = { SupervisorService.start(applicationContext) },
         ).register(flutterEngine)
     }
 }

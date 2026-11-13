@@ -13,6 +13,7 @@ class RuntimeChannel(
     private val hermes: HermesInstaller,
     private val downloads: BackgroundDownloads,
     private val service: (File) -> Unit,
+    private val startSupervisor: () -> Unit,
 ) : MethodChannel.MethodCallHandler {
 
     private val main = Handler(Looper.getMainLooper())
@@ -63,6 +64,17 @@ class RuntimeChannel(
                 }
             }
             "hermesStatus" -> result.success(hermes.status())
+            "startHermes" -> {
+                startSupervisor()
+                result.success(mapOf("started" to true))
+            }
+            "stopHermes" -> {
+                HermesSupervisor.requestStop()
+                result.success(mapOf("stopping" to true))
+            }
+            "hermesHealth" -> result.success(
+                mapOf("phase" to HermesSupervisor.phase.name, "message" to HermesSupervisor.message),
+            )
             "repairRuntime" -> inBackground(result) { runtime.repair() }
             "resetRuntime" -> inBackground(result) { runtime.reset() }
             else -> result.notImplemented()
