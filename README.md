@@ -34,7 +34,7 @@ To update later, repeat steps 2–5. The new version installs over the old one a
 
 ## Build and release (for the maintainer)
 
-- Every push to `main` or a `claude/**` branch runs analyze, tests and a release build in
+- Every push to `main` or a `feat/`, `fix/`, `chore/` or `docs/` branch runs analyze, tests and a release build in
   GitHub Actions. The APK is in the run's **Artifacts**.
 - Pushing a tag like `v0.1.0` also creates a **GitHub Release** with the signed APK attached.
 
