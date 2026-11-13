@@ -89,4 +89,24 @@ class RuntimeChannel {
           : null,
     );
   }
+
+  /// Starts Hermes's dashboard in the foreground service; it restarts itself if it stops.
+  Future<void> startHermes() async {
+    await _channel.invokeMapMethod<String, dynamic>('startHermes');
+  }
+
+  /// Stops Hermes and its restarts.
+  Future<void> stopHermes() async {
+    await _channel.invokeMapMethod<String, dynamic>('stopHermes');
+  }
+
+  /// Hermes's state: stopped, starting, ready, restarting or gave up, with a plain message.
+  Future<({String phase, String message})> hermesHealth() async {
+    final map = Map<String, dynamic>.from(
+        await _channel.invokeMapMethod<String, dynamic>('hermesHealth') ?? {});
+    return (
+      phase: map['phase'] as String? ?? 'STOPPED',
+      message: map['message'] as String? ?? 'Hermes is stopped.',
+    );
+  }
 }

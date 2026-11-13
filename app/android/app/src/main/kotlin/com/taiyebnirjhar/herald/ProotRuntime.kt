@@ -48,6 +48,18 @@ class ProotRuntime(private val context: Context) {
         mapOf("ok" to false, "error" to (e.message ?: "The install failed"))
     }
 
+    /** Starts [command] inside the Linux base and returns at once; output goes to [logTo]. Long-running. */
+    fun startInGuest(command: List<String>, logTo: File): Process {
+        val args = mutableListOf(proot.path, "-r", rootfsDir.path, "-w", "/", "-b", "/proc", "-b", "/dev")
+        args += command
+        val builder = ProcessBuilder(args)
+            .redirectErrorStream(true)
+            .redirectOutput(ProcessBuilder.Redirect.appendTo(logTo))
+        builder.environment()["PROOT_LOADER"] = loader.path
+        builder.environment()["PROOT_TMP_DIR"] = tmpDir.path
+        return builder.start()
+    }
+
     /** Runs `/usr/bin/uname -a` inside the Linux base system. Blocks; call off the main thread. */
     fun uname(): Map<String, Any?> {
         if (!File(rootfsDir, "usr/bin/uname").exists()) {

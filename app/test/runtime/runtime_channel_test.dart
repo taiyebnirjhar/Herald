@@ -133,4 +133,25 @@ void main() {
     });
     await RuntimeChannel().hermesInstall(script: '/files/hermes-install.sh');
   });
+
+  test('hermesHealth reads the phase and message', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'hermesHealth');
+      return {'phase': 'READY', 'message': 'Hermes is running.'};
+    });
+    final h = await RuntimeChannel().hermesHealth();
+    expect(h.phase, 'READY');
+    expect(h.message, 'Hermes is running.');
+  });
+
+  test('startHermes and stopHermes call the matching native action', () async {
+    final calls = <String>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call.method);
+      return {};
+    });
+    await RuntimeChannel().startHermes();
+    await RuntimeChannel().stopHermes();
+    expect(calls, ['startHermes', 'stopHermes']);
+  });
 }

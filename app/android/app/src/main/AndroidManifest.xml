@@ -35,6 +35,10 @@
             </intent-filter>
         </activity>
         <service
+            android:name=".SupervisorService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service
             android:name=".HermesService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
