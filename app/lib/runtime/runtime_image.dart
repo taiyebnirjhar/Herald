@@ -5,7 +5,7 @@ class RuntimeImage {
   const RuntimeImage._();
 
   static const url =
-      'https://github.com/taiyebnirjhar/Herald/releases/download/runtime-v0.0.1/debian-trixie-arm64.tar.gz';
+      'https://github.com/taiyebnirjhar/Herald/releases/download/runtime-v0.0.2/debian-trixie-arm64.tar.gz';
 
   /// File name the download is kept under.
   static const fileName = 'debian-trixie-arm64.tar.gz';

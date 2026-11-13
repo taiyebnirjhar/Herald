@@ -58,4 +58,11 @@ void main() {
     expect(find.textContaining('prootExists: true'), findsOneWidget);
     expect(find.text('Run proot --version'), findsOneWidget);
   });
+
+  test('the free-space rule names the space needed and the space free', () {
+    expect(spaceProblem(100, linuxNeedMb, 'the Linux base'), isNotNull);
+    expect(spaceProblem(100, linuxNeedMb, 'the Linux base'), contains('100 MB free'));
+    expect(spaceProblem(linuxNeedMb, linuxNeedMb, 'the Linux base'), isNull);
+    expect(spaceProblem(null, linuxNeedMb, 'the Linux base'), isNull);
+  });
 }

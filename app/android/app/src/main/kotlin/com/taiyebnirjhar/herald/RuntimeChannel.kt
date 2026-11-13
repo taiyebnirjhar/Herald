@@ -75,6 +75,8 @@ class RuntimeChannel(
             "hermesHealth" -> result.success(
                 mapOf("phase" to HermesSupervisor.phase.name, "message" to HermesSupervisor.message),
             )
+            "repairRuntime" -> inBackground(result) { runtime.repair() }
+            "resetRuntime" -> inBackground(result) { runtime.reset() }
             else -> result.notImplemented()
         }
     }

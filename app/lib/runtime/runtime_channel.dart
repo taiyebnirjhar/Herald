@@ -109,4 +109,14 @@ class RuntimeChannel {
       message: map['message'] as String? ?? 'Hermes is stopped.',
     );
   }
+
+  /// Removes the unpacked Linux base so it can be set up again.
+  Future<RunResult> repairRuntime() async => RunResult.fromMap(Map<String, dynamic>.from(
+        await _channel.invokeMapMethod<String, dynamic>('repairRuntime') ?? {},
+      ));
+
+  /// Removes the Linux base, its downloads and the install log.
+  Future<RunResult> resetRuntime() async => RunResult.fromMap(Map<String, dynamic>.from(
+        await _channel.invokeMapMethod<String, dynamic>('resetRuntime') ?? {},
+      ));
 }
