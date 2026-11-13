@@ -63,9 +63,8 @@ class UpdateChannel(private val context: Context) : MethodChannel.MethodCallHand
 
     /** Returns "started", or "needs_permission" after opening the settings page. */
     private fun install(path: String): String {
-        val file = File(path).canonicalFile
-        val allowedDir = File(context.cacheDir, "updates").canonicalFile
-        require(file.parentFile == allowedDir && file.name.endsWith(".apk") && file.isFile) {
+        val file = File(path)
+        require(ApkPaths.isInstallable(file, context.cacheDir)) {
             "The update file is not where it should be"
         }
 

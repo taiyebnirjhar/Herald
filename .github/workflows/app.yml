@@ -5,7 +5,7 @@ name: App (APK)
 
 on:
   push:
-    branches: [main, "feat/**", "fix/**", "chore/**", "docs/**"]
+    branches: [main, "feat/**", "fix/**", "chore/**", "docs/**", "test/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -99,6 +99,11 @@ jobs:
           flutter build apk --release --target-platform android-arm64
           --build-name "${{ steps.version.outputs.name }}"
           --build-number "$GITHUB_RUN_NUMBER"
+
+      # After the build: flutter build creates android/gradlew (it is not in git).
+      - name: Kotlin unit tests
+        working-directory: app/android
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
 
       - name: Verify APK (signature, targetSdk 28, arm64 only)
         run: |
