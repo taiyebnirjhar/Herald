@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Battery (4.6): lets the player allow Herald to keep running when the screen is off. Android asks once. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Boot start (4.5): the app hears that the phone has finished starting up. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:label="herald"
@@ -41,6 +43,14 @@
             android:name=".SupervisorService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <!-- Starts Hermes after the phone restarts, if the player kept "Start after the phone restarts" on (4.5). -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
         <service
             android:name=".HermesService"
             android:exported="false"
