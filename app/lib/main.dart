@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'chat/chat_page.dart';
 import 'setup/setup_page.dart';
 import 'runtime/runtime_channel.dart';
 import 'update/app_installer.dart';
@@ -262,7 +263,12 @@ class _BottomBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           _NavIcon(icon: Icons.home_rounded, selected: true),
-          _NavIcon(icon: Icons.chat_bubble_outline_rounded),
+          _NavIcon(
+            icon: Icons.chat_bubble_outline_rounded,
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ChatPage()),
+            ),
+          ),
           Container(
             width: 56,
             height: 56,
@@ -281,23 +287,32 @@ class _BottomBar extends StatelessWidget {
 }
 
 class _NavIcon extends StatelessWidget {
-  const _NavIcon({required this.icon, this.selected = false});
+  const _NavIcon({required this.icon, this.selected = false, this.onPressed});
 
   final IconData icon;
   final bool selected;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: selected ? HeraldColors.accent : Colors.transparent,
-      ),
-      child: Icon(
-        icon,
-        color: selected ? Colors.white : HeraldColors.muted,
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: selected ? HeraldColors.accent : Colors.transparent,
+          ),
+          child: Icon(
+            icon,
+            color: selected ? Colors.white : HeraldColors.muted,
+          ),
+        ),
       ),
     );
   }
