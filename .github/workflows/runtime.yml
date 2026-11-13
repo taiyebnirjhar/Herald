@@ -5,6 +5,9 @@ name: Runtime (Debian rootfs)
 # (runtime-v*) that the app downloads and checks against a hash it has compiled in.
 
 on:
+  push:
+    branches: [feat/1.3-debian-rootfs]
+    paths: ["runtime/**", ".github/workflows/runtime.yml"]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -65,22 +68,37 @@ jobs:
 
   publish:
     name: Publish runtime release
-    if: inputs.release_tag != ''
     needs: build
+    if: github.event_name == 'push' || inputs.release_tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out the release tag
+        id: tag
+        env:
+          MANUAL_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "$MANUAL_TAG" ]; then TAG="$MANUAL_TAG"; else TAG="$(cat runtime/RELEASE_TAG 2>/dev/null || true)"; fi
+          if [ -z "$TAG" ]; then echo "No release tag (runtime/RELEASE_TAG empty): build only."; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - uses: actions/download-artifact@v4
+        if: steps.tag.outputs.tag != ''
         with:
           name: debian-trixie-arm64
           path: release
 
       - name: Create release with the image
+        if: steps.tag.outputs.tag != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.release_tag }}
-          name: Runtime ${{ inputs.release_tag }}
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Runtime ${{ steps.tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           files: |
             release/debian-trixie-arm64.tar.gz
             release/debian-trixie-arm64.tar.gz.sha256
