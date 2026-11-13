@@ -69,4 +69,4 @@ If a secret is missing, the build stops with a clear message and does not produc
 
 ## Open-source licences
 
-See [THIRD_PARTY.md](THIRD_PARTY.md). Herald's own licence is in [LICENSE](LICENSE).
+Herald is free for personal and other non-commercial use. You may use, copy, modify and share it. **You may not sell it or use it commercially.** The full terms are in [LICENSE](LICENSE) (PolyForm Noncommercial 1.0.0). Third-party licences are listed in [THIRD_PARTY.md](THIRD_PARTY.md).

@@ -19,5 +19,6 @@ Each entry: date, decision, reason. Plan-level decisions D1–D7 are in PLAN.md 
 - **UI direction (owner's reference screens):** light, glassy, lavender-to-lime gradient,
   white rounded cards, bold sans headline, purple accent, floating bottom bar. Touch targets
   at least 44 px. Dark mode and themes come later (PLAN.md 5.6).
-- **Licence (open):** `LICENSE` is a placeholder "all rights reserved" text until the owner
-  chooses a licence. Owner decision needed.
+- **Licence: PolyForm Noncommercial 1.0.0** (owner decision). Anyone may use, copy, modify and share
+  Herald for non-commercial purposes. Selling it or using it commercially is not permitted.
+  Chosen over MIT/Apache because those allow selling. Not an OSI "open source" licence.
