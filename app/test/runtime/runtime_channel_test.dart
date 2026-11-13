@@ -100,4 +100,24 @@ void main() {
     final r = await RuntimeChannel().runUname();
     expect(r.output, contains('aarch64'));
   });
+
+  test('hermesStatus reads running and the log', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'hermesStatus');
+      return {'running': true, 'log': 'step 3 of 9'};
+    });
+    final status = await RuntimeChannel().hermesStatus();
+    expect(status.running, isTrue);
+    expect(status.log, 'step 3 of 9');
+  });
+
+  test('hermesInstall reports the version check', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'hermesInstall');
+      return {'ok': true, 'output': 'Hermes Agent v2026.9.24'};
+    });
+    final r = await RuntimeChannel().hermesInstall();
+    expect(r.ok, isTrue);
+    expect(r.output, contains('v2026.9.24'));
+  });
 }

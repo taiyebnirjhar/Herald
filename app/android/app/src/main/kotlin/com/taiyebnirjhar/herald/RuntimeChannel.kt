@@ -7,7 +7,10 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 /** Flutter side of [ProotRuntime] (lib/runtime/runtime_channel.dart). */
-class RuntimeChannel(private val runtime: ProotRuntime) : MethodChannel.MethodCallHandler {
+class RuntimeChannel(
+    private val runtime: ProotRuntime,
+    private val hermes: HermesInstaller,
+) : MethodChannel.MethodCallHandler {
 
     private val main = Handler(Looper.getMainLooper())
 
@@ -23,6 +26,8 @@ class RuntimeChannel(private val runtime: ProotRuntime) : MethodChannel.MethodCa
                 runtime.installRootfs { stage, fraction -> reportProgress(stage, fraction) }
             }
             "runUname" -> inBackground(result) { runtime.uname() }
+            "hermesInstall" -> inBackground(result) { hermes.install() }
+            "hermesStatus" -> result.success(hermes.status())
             else -> result.notImplemented()
         }
     }

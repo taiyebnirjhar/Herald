@@ -59,4 +59,17 @@ class RuntimeChannel {
         Map<String, dynamic>.from(
             await _channel.invokeMapMethod<String, dynamic>('runUname') ?? {}),
       );
+
+  /// Installs Hermes Agent in the Linux base (WBS 1.4). Can take a long time;
+  /// poll [hermesStatus] for the log while it runs.
+  Future<RunResult> hermesInstall() async => RunResult.fromMap(Map<String, dynamic>.from(
+        await _channel.invokeMapMethod<String, dynamic>('hermesInstall') ?? {},
+      ));
+
+  /// Whether the install is running, and the last lines of its log.
+  Future<({bool running, String log})> hermesStatus() async {
+    final map = Map<String, dynamic>.from(
+        await _channel.invokeMapMethod<String, dynamic>('hermesStatus') ?? {});
+    return (running: map['running'] == true, log: map['log'] as String? ?? '');
+  }
 }

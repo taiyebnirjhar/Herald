@@ -76,6 +76,45 @@ class ProotRuntime(private val context: Context) {
         return run(rootfsDir, "/usr/bin/uname", "-a")
     }
 
+    /**
+     * Runs [command] inside the Linux base. [fakeRoot] lets it act as root (for
+     * apt and the Hermes installer). Output goes to [logTo] when given. Long
+     * runs are fine: this waits for the process to finish. Call off the main thread.
+     */
+    fun runInGuest(command: List<String>, fakeRoot: Boolean, logTo: File?): Map<String, Any?> {
+        if (!proot.isFile) {
+            return mapOf("ok" to false, "error" to "libproot.so is missing from the app: ${proot.path}")
+        }
+        val args = mutableListOf(proot.path)
+        if (fakeRoot) args += "-0"
+        args += listOf("-r", rootfsDir.path, "-w", "/", "-b", "/proc", "-b", "/dev")
+        args += command
+        return try {
+            val builder = ProcessBuilder(args)
+                .apply {
+                    environment()["PROOT_LOADER"] = loader.path
+                    environment()["PROOT_TMP_DIR"] = tmpDir.path
+                }
+            if (logTo != null) {
+                builder.redirectErrorStream(true)
+                builder.redirectOutput(ProcessBuilder.Redirect.appendTo(logTo))
+            } else {
+                builder.redirectErrorStream(true)
+            }
+            val process = builder.start()
+            val output = if (logTo == null) process.inputStream.bufferedReader().readText().trim() else ""
+            val code = process.waitFor()
+            mapOf(
+                "ok" to (code == 0),
+                "exitCode" to code,
+                "output" to output,
+                "error" to if (code == 0) null else "The command stopped with exit code $code",
+            )
+        } catch (e: Exception) {
+            mapOf("ok" to false, "error" to "${e.javaClass.simpleName}: ${e.message}")
+        }
+    }
+
     /** Runs proot with [rootfs] as the guest root (or none, for `--version`). */
     private fun run(rootfs: File?, vararg command: String): Map<String, Any?> {
         if (!proot.isFile) {

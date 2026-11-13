@@ -78,6 +78,35 @@ class _RuntimeDebugPageState extends State<RuntimeDebugPage> {
     }
   }
 
+  Future<void> _installHermes() async {
+    setState(() {
+      _running = true;
+      _result = 'Installing Hermes Agent. This can take a long time. Keep the app open and the screen on.';
+    });
+    // Poll the installer's log while it runs.
+    var polling = true;
+    () async {
+      while (polling && mounted) {
+        await Future<void>.delayed(const Duration(seconds: 3));
+        try {
+          final status = await widget.runtime.hermesStatus();
+          if (mounted && polling && status.log.isNotEmpty) {
+            setState(() => _result = 'Installing Hermes…\n\n${status.log}');
+          }
+        } catch (_) {}
+      }
+    }();
+    try {
+      final r = await widget.runtime.hermesInstall();
+      setState(() => _result = 'Hermes install: ${_describeRun(r)}');
+    } catch (e) {
+      setState(() => _result = 'Hermes install FAILED\n$e');
+    } finally {
+      polling = false;
+      if (mounted) setState(() => _running = false);
+    }
+  }
+
   Future<void> _runUname() async {
     setState(() {
       _running = true;
@@ -122,6 +151,11 @@ class _RuntimeDebugPageState extends State<RuntimeDebugPage> {
           FilledButton(
             onPressed: _running ? null : _runUname,
             child: const Text('Run uname -a in Linux'),
+          ),
+          const SizedBox(height: 10),
+          FilledButton(
+            onPressed: _running ? null : _installHermes,
+            child: const Text('Install Hermes (1.4)'),
           ),
           const SizedBox(height: 16),
           const Text('Result', style: TextStyle(fontWeight: FontWeight.w700)),
