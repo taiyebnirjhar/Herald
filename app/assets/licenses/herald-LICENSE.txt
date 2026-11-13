@@ -1,0 +1,30 @@
+Herald Licence (custom)
+
+Copyright (c) 2026 taiyebnirjhar. https://github.com/taiyebnirjhar/Herald
+
+1. Use
+You may use, run and study Herald free of charge, for any purpose, including inside an organisation.
+
+2. Credit
+Keep the copyright notice and this licence in every copy you make. Credit Herald and its author in any copy or work based on it. Never present Herald, or any part of it, as your own work.
+
+3. Contributions
+Anyone may contribute to Herald by pull request on the original repository. By submitting a contribution, you grant the copyright holder a perpetual, irrevocable, royalty-free licence to use, modify and redistribute it under this licence.
+
+4. No resale
+You may not sell Herald, copies of it, or any work based on it. You may not charge a fee for it, license it for a fee, or offer it as a paid service or as part of a paid product.
+
+5. Changes
+You may modify Herald for your own use. You may not distribute modified versions, or works based on Herald, to anyone else. To share an improvement, submit it as a pull request to the original repository. Forking the repository on GitHub to prepare such a pull request is allowed.
+
+6. Third-party components
+Components bundled with Herald keep their own licences. See THIRD_PARTY.md. Nothing in this licence changes those licences.
+
+7. Ending this licence
+If you break these terms, your licence ends. Contributions already accepted stay under their licence.
+
+8. No warranty
+Herald is provided "as is", without warranty of any kind. The copyright holder is not liable for any damage arising from its use.
+
+9. Not an open-source licence
+This licence is source-available. It is not an OSI-approved open-source licence, because it restricts resale and redistribution of modified versions.

@@ -29,12 +29,20 @@ class ProotRuntime(private val context: Context) {
         "prootSize" to proot.length(),
         "loaderExists" to loader.isFile,
         "tmpDir" to tmpDir.path,
-        "linuxInstalled" to File(rootfsDir, "usr/bin/uname").exists(),
+        "linuxInstalled" to isLinuxInstalled(),
         "linuxDir" to rootfsDir.path,
+        "freeMb" to RuntimeReset.freeBytes(context) / (1024 * 1024),
     )
 
     /** `proot --version`: the exit code and everything it printed. */
     fun version(): Map<String, Any?> = run(null, "--version")
+
+    /** The Linux base is installed and is the version this app expects. */
+    fun isLinuxInstalled(): Boolean =
+        File(rootfsDir, "usr/bin/uname").exists() &&
+            versionFile().takeIf { it.isFile }?.readText()?.trim() == RuntimeImage.VERSION
+
+    private fun versionFile(): File = File(context.filesDir, "runtime/linux-version")
 
     /**
      * Unpacks the downloaded Linux base system at [archive], after checking it.
@@ -42,10 +50,30 @@ class ProotRuntime(private val context: Context) {
      */
     fun installRootfs(archive: File, progress: RootfsInstaller.Progress): Map<String, Any?> = try {
         RootfsInstaller.verifyAndExtract(archive, RuntimeImage.SHA256, rootfsDir, progress)
+        versionFile().apply { parentFile?.mkdirs() }.writeText(RuntimeImage.VERSION)
         archive.delete()
         mapOf("ok" to true, "path" to rootfsDir.path)
     } catch (e: IOException) {
         mapOf("ok" to false, "error" to (e.message ?: "The install failed"))
+    }
+
+    /** Removes the unpacked Linux base so it can be set up again. Blocks; call off the main thread. */
+    fun repair(): Map<String, Any?> =
+        if (RuntimeReset.repair(File(context.filesDir, "runtime"))) {
+            mapOf("ok" to true)
+        } else {
+            mapOf("ok" to false, "error" to "Couldn't remove the Linux base. Try again.")
+        }
+
+    /** Removes the Linux base, its downloads and the install log. Blocks; call off the main thread. */
+    fun reset(): Map<String, Any?> {
+        val runtimeDir = File(context.filesDir, "runtime")
+        val ok = RuntimeReset.reset(
+            runtimeDir,
+            File(context.cacheDir, "rootfs-download"),
+            File(runtimeDir, "hermes-install.log"),
+        )
+        return if (ok) mapOf("ok" to true) else mapOf("ok" to false, "error" to "Couldn't remove everything. Try again.")
     }
 
     /** Runs `/usr/bin/uname -a` inside the Linux base system. Blocks; call off the main thread. */

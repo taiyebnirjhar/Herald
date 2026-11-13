@@ -1,17 +1,25 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'chat/chat_page.dart';
 import 'setup/setup_page.dart';
 import 'runtime/runtime_channel.dart';
+import 'settings/app_settings.dart';
+import 'settings/settings_page.dart';
+import 'storage/key_value_store.dart';
 import 'update/app_installer.dart';
 import 'update/update_controller.dart';
 import 'update/update_service.dart';
 import 'update/update_status_card.dart';
+import 'welcome/welcome_flow.dart';
+import 'welcome/welcome_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final store = SharedPrefsStore(await SharedPreferences.getInstance());
+  final showWelcome = !await WelcomeStore(store).isSeen();
   final installer = MethodChannelAppInstaller();
   final updates = UpdateController(
     service: UpdateService(
@@ -24,7 +32,7 @@ Future<void> main() async {
     ),
     installer: installer,
   );
-  runApp(HeraldApp(updates: updates));
+  runApp(HeraldApp(updates: updates, store: store, showWelcome: showWelcome));
 }
 
 /// Palette taken from the light, glassy chat-bot UI reference (lavender + lime).
@@ -39,12 +47,24 @@ class HeraldColors {
 }
 
 class HeraldApp extends StatelessWidget {
-  const HeraldApp({super.key, required this.updates});
+  const HeraldApp({
+    super.key,
+    required this.updates,
+    required this.store,
+    this.showWelcome = false,
+  });
 
   final UpdateController updates;
 
+  /// Settings and the welcome flag are kept here.
+  final KeyValueStore store;
+
+  /// True on first launch: the welcome flow comes before the home screen.
+  final bool showWelcome;
+
   @override
   Widget build(BuildContext context) {
+    final home = HelloPage(updates: updates, store: store);
     return MaterialApp(
       title: 'Herald',
       debugShowCheckedModeBanner: false,
@@ -56,15 +76,18 @@ class HeraldApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: Colors.white,
       ),
-      home: HelloPage(updates: updates),
+      home: showWelcome
+          ? WelcomeFlow(welcome: WelcomeStore(store), homeBuilder: (_) => home)
+          : home,
     );
   }
 }
 
 class HelloPage extends StatefulWidget {
-  const HelloPage({super.key, required this.updates});
+  const HelloPage({super.key, required this.updates, required this.store});
 
   final UpdateController updates;
+  final KeyValueStore store;
 
   @override
   State<HelloPage> createState() => _HelloPageState();
@@ -135,7 +158,15 @@ class _HelloPageState extends State<HelloPage> {
                             UpdateStatusCard(controller: widget.updates),
                       ),
                       const SizedBox(height: 16),
-                      const _BottomBar(),
+                      _BottomBar(
+                        onSettings: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => SettingsPage(
+                              settings: AppSettings(widget.store),
+                            ),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 16),
                     ],
                   ),
@@ -242,7 +273,9 @@ class _Orb extends StatelessWidget {
 
 /// Floating pill nav, decorative in Phase 0.
 class _BottomBar extends StatelessWidget {
-  const _BottomBar();
+  const _BottomBar({required this.onSettings});
+
+  final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -265,7 +298,8 @@ class _BottomBar extends StatelessWidget {
           _NavIcon(icon: Icons.home_rounded, selected: true),
           _NavIcon(
             icon: Icons.chat_bubble_outline_rounded,
-            onPressed: () => Navigator.of(context).push(
+            tooltip: 'Chat',
+            onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ChatPage()),
             ),
           ),
@@ -279,7 +313,11 @@ class _BottomBar extends StatelessWidget {
             child: const Icon(Icons.auto_awesome_rounded, color: Colors.white),
           ),
           _NavIcon(icon: Icons.tune_rounded),
-          _NavIcon(icon: Icons.settings_outlined),
+          _NavIcon(
+            icon: Icons.settings_outlined,
+            tooltip: 'Settings',
+            onTap: onSettings,
+          ),
         ],
       ),
     );
@@ -287,31 +325,40 @@ class _BottomBar extends StatelessWidget {
 }
 
 class _NavIcon extends StatelessWidget {
-  const _NavIcon({required this.icon, this.selected = false, this.onPressed});
+  const _NavIcon({
+    required this.icon,
+    this.selected = false,
+    this.tooltip,
+    this.onTap,
+  });
 
   final IconData icon;
   final bool selected;
-  final VoidCallback? onPressed;
+  final String? tooltip;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onPressed,
-        child: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: selected ? HeraldColors.accent : Colors.transparent,
-          ),
-          child: Icon(
-            icon,
-            color: selected ? Colors.white : HeraldColors.muted,
-          ),
+    // 48 px circle: meets the 44 px minimum touch target.
+    final circle = Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? HeraldColors.accent : Colors.transparent,
+      ),
+      child: Icon(icon, color: selected ? Colors.white : HeraldColors.muted),
+    );
+    if (onTap == null) return circle;
+    return Tooltip(
+      message: tooltip ?? '',
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: circle,
         ),
       ),
     );

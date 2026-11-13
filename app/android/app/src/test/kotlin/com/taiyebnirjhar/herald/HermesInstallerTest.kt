@@ -34,4 +34,11 @@ class HermesInstallerTest {
         assertTrue(command.contains("curl"))
         assertTrue(command.contains("git"))
     }
+
+    @Test
+    fun aHalfFinishedEarlierInstallIsRepairedBeforeTheToolsAreInstalled() {
+        val script = HermesInstaller.aptCommand().last()
+        assertTrue(script.indexOf("dpkg --configure -a") < script.indexOf("apt-get install"))
+        assertTrue(script.indexOf("status-old") < script.indexOf("dpkg --configure -a"))
+    }
 }
