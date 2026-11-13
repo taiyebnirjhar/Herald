@@ -49,4 +49,19 @@ class HermesSupervisorTest {
         assertEquals("-i", command[1])
         assertTrue(command.contains("/usr/local/bin/hermes"))
     }
+
+    @Test
+    fun withAnInstalledWebUiTheDashboardIsToldWhereItIs() {
+        val command = HermesSupervisor.dashboardCommand(HermesSupervisor.WEB_DIST_IN_GUEST)
+        assertTrue(command.contains("HERMES_WEB_DIST=${HermesSupervisor.WEB_DIST_IN_GUEST}"))
+        // The rest of the command is unchanged: still loopback, still a clean environment.
+        assertTrue(command.contains("--host"))
+        assertEquals("/usr/bin/env", command[0])
+    }
+
+    @Test
+    fun withoutAnInstalledWebUiTheVariableIsNotSet() {
+        val command = HermesSupervisor.dashboardCommand(null)
+        assertFalse(command.any { it.startsWith("HERMES_WEB_DIST") })
+    }
 }
