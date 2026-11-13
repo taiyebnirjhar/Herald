@@ -31,8 +31,11 @@ class HermesInstaller(private val context: Context, private val runtime: ProotRu
             writeResolvConf()
             copyScript(script)
             // The base image is minimal: the installer needs curl, git and certificates.
-            val tools = runtime.runInGuest(command = aptCommand(), fakeRoot = true, logTo = logFile)
-            if (tools["ok"] != true) return finish(tools)
+            // The image carries curl, git and certificates; the package step runs only if one is missing.
+            if (!toolsPresent()) {
+                val tools = runtime.runInGuest(command = aptCommand(), fakeRoot = true, logTo = logFile)
+                if (tools["ok"] != true) return finish(tools)
+            }
             val install = runtime.runInGuest(command = guestCommand(), fakeRoot = true, logTo = logFile)
             if (install["ok"] != true) return finish(install)
             val version = runtime.runInGuest(
@@ -70,6 +73,9 @@ class HermesInstaller(private val context: Context, private val runtime: ProotRu
         }
         return outcome
     }
+
+    private fun toolsPresent(): Boolean =
+        File(rootfs, "usr/bin/curl").exists() && File(rootfs, "usr/bin/git").exists()
 
     // Name resolution inside the guest: Android's DNS isn't in the guest's files.
     private fun writeResolvConf() {
