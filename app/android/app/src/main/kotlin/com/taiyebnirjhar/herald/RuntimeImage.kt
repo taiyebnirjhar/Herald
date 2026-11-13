@@ -1,16 +1,13 @@
 package com.taiyebnirjhar.herald
 
 /**
- * The Linux base system (WBS 1.3). It is bundled in the APK under assets/, so
- * the phone needs no download. CI puts the file there from the runtime release
- * and checks it against [SHA256] before building (see .github/workflows/app.yml).
- * Changing the image means changing these values in a new release.
+ * The Linux base system (WBS 1.3). The app downloads it once, the first time
+ * the player installs it, and checks it against [SHA256] before unpacking.
+ * App updates stay small; the image only changes with a new runtime release.
+ * Changing the image means changing these values in a new app release.
  */
 object RuntimeImage {
-    /** Where the image is asset-bundled in the APK. */
-    const val ASSET = "runtime/linux-base.bin"
-
-    /** Where it can be downloaded if the bundled copy is missing (local dev builds). */
+    /** Where the player's phone downloads it from (once). */
     const val URL =
         "https://github.com/taiyebnirjhar/Herald/releases/download/runtime-v0.0.1/debian-trixie-arm64.tar.gz"
 

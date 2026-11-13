@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 /**
  * Runs proot (WBS 1.2): the program that gives Hermes a Linux userspace.
  * The binaries come from the app's native library folder (runtime/proot/).
- * The Linux base system (WBS 1.3) is bundled in the APK and unpacked under
+ * The Linux base system (WBS 1.3) is downloaded once and unpacked under
  * filesDir/runtime/ as proot's guest root.
  */
 class ProotRuntime(private val context: Context) {
@@ -31,23 +31,14 @@ class ProotRuntime(private val context: Context) {
         "tmpDir" to tmpDir.path,
         "linuxInstalled" to File(rootfsDir, "usr/bin/uname").exists(),
         "linuxDir" to rootfsDir.path,
-        "linuxBundled" to isBundled(),
     )
 
     /** `proot --version`: the exit code and everything it printed. */
     fun version(): Map<String, Any?> = run(null, "--version")
 
-    /** Whether the Linux image is bundled in this APK. */
-    fun isBundled(): Boolean = try {
-        context.assets.openFd(RuntimeImage.ASSET).use { true }
-    } catch (e: IOException) {
-        false
-    }
-
     /**
-     * Unpacks the Linux base system: from the copy bundled in the APK, or
-     * downloaded if this build has none. [progress] reports each stage.
-     * Blocks; call off the main thread.
+     * Downloads the Linux base system once, checks it, and unpacks it.
+     * [progress] reports each stage. Blocks; call off the main thread.
      */
     fun installRootfs(progress: RootfsInstaller.Progress): Map<String, Any?> = try {
         val cache = File(context.cacheDir, "rootfs-download").apply { mkdirs() }
@@ -62,15 +53,7 @@ class ProotRuntime(private val context: Context) {
     }
 
     private fun obtainImage(part: File, progress: RootfsInstaller.Progress) {
-        if (isBundled()) {
-            context.assets.openFd(RuntimeImage.ASSET).use { fd ->
-                fd.createInputStream().use { input ->
-                    RootfsInstaller.copy(input, part, fd.length) { f -> progress("Copying the Linux image", f) }
-                }
-            }
-        } else {
-            download(RuntimeImage.URL, part) { f -> progress("Downloading the Linux image", f) }
-        }
+        download(RuntimeImage.URL, part) { f -> progress("Downloading the Linux image", f) }
     }
 
     private fun download(url: String, to: File, onFraction: (Double) -> Unit) {
