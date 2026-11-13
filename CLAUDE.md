@@ -25,6 +25,11 @@ The full plan and Work Breakdown Structure is in `PLAN.md`. Read it fully before
 - If the total size is unknown, show the bytes done and the current stage in plain words. Never leave a download with no visible progress.
 - This applies to every download, including downloads inside the Linux base (for example package installs), where progress is shown from the installer's own stages until byte-level progress is available. Record any gap in `docs/DECISIONS.md`.
 
+## 0e. Work log (owner rule)
+- Every **decision**, **change** and **fix** is recorded in `docs/WORK_LOG.md` in the same pull request that makes it. Newest entries first, each with the date, the WBS id, the PR number and the commit.
+- Record mistakes and corrections too, with what was wrong and what changed.
+- Keep it short: one line or a few bullets per entry. No secrets, keys or passwords.
+
 ## How to work
 - Work **phase by phase, in WBS order**. Use the WBS IDs (e.g. `1.4`) in branch names, commits and PR titles.
 - **Stop after Phase 1** (the spike) and write `docs/SPIKE_REPORT.md` with measurements and a GO / NO-GO
