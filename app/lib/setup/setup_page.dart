@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../downloads/background_downloader.dart';
 import '../runtime/hermes_pin.dart';
 import '../runtime/runtime_channel.dart';
 import '../runtime/runtime_image.dart';
+import '../supervisor/app_log.dart';
 import '../update/update_exception.dart';
 
 /// Free space the Linux base needs (download plus unpacked copy, with headroom).
@@ -427,15 +429,22 @@ class _SetupPageState extends State<SetupPage> {
               onPressed: () => setState(() => _showLog = !_showLog),
               child: Text(_showLog ? 'Hide log' : 'Show log'),
             ),
-            if (_showLog)
+            if (_showLog) ...[
               SelectableText(
-                shownLog,
+                AppLog.redact(shownLog),
                 style: const TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 11,
                   height: 1.3,
                 ),
               ),
+              const SizedBox(height: 6),
+              OutlinedButton.icon(
+                onPressed: () => Clipboard.setData(ClipboardData(text: AppLog.redact(shownLog))),
+                icon: const Icon(Icons.copy, size: 18),
+                label: const Text('Copy log'),
+              ),
+            ],
           ],
           const SizedBox(height: 16),
           TextButton(
