@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../battery/battery_page.dart';
+import '../chat/provider_page.dart';
 import '../runtime/hermes_pin.dart';
 import '../ui/herald_look.dart';
 import '../update/app_installer.dart';
@@ -189,6 +190,21 @@ class _SettingsPageState extends State<SettingsPage> {
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const BatteryPage()),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _Section(
+                title: 'AI',
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('AI provider and key'),
+                    subtitle: const _Note('OpenRouter, Google Gemini or xAI (Grok).'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ProviderPage()),
                     ),
                   ),
                 ],
