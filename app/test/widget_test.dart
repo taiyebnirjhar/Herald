@@ -8,6 +8,8 @@ import 'package:herald/update/update_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'support/fake_key_value_store.dart';
+
 class _NoopInstaller implements AppInstaller {
   @override
   Future<InstalledVersion> installedVersion() async =>
@@ -35,7 +37,7 @@ UpdateController _controller({String? tag}) => UpdateController(
 
 void main() {
   testWidgets('Hello screen shows the greeting and the update card', (tester) async {
-    await tester.pumpWidget(HeraldApp(updates: _controller()));
+    await tester.pumpWidget(HeraldApp(updates: _controller(), store: FakeKeyValueStore()));
     await tester.pumpAndSettle();
 
     expect(find.text('Hello, Herald'), findsOneWidget);
@@ -44,7 +46,7 @@ void main() {
   });
 
   testWidgets('a newer release shows Update now', (tester) async {
-    await tester.pumpWidget(HeraldApp(updates: _controller(tag: 'v0.2.0')));
+    await tester.pumpWidget(HeraldApp(updates: _controller(tag: 'v0.2.0'), store: FakeKeyValueStore()));
     await tester.pumpAndSettle();
 
     expect(find.text('Update now'), findsOneWidget);

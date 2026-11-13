@@ -12,6 +12,8 @@ import 'package:herald/update/update_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import '../support/fake_key_value_store.dart';
+
 /// One user journey through the whole app, with the Android side and GitHub
 /// faked: start, see the Hello screen, check for an update, open the runtime
 /// check from the menu, run it, go back.
@@ -58,7 +60,9 @@ void main() {
               'location': 'https://github.com/taiyebnirjhar/Herald/releases/tag/v0.1.3',
             });
           }
-          if (r.url.path.endsWith('.sha256')) return http.Response('$sha  x\n', 200);
+          if (r.url.path.endsWith('.sha256')) {
+            return http.Response('$sha  x\n', 200);
+          }
           return http.Response.bytes(apk, 200);
         }),
         downloadsDir: () async => Directory.systemTemp,
@@ -66,7 +70,7 @@ void main() {
       installer: MethodChannelAppInstaller(updateChannel),
     );
 
-    await tester.pumpWidget(HeraldApp(updates: updates));
+    await tester.pumpWidget(HeraldApp(updates: updates, store: FakeKeyValueStore()));
     await tester.pumpAndSettle();
 
     // First screen: greeting, installed version, and the update check ran.
