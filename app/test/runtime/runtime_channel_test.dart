@@ -53,17 +53,33 @@ void main() {
     expect(check.ok, isFalse);
   });
 
-  test('installRootfs sends the address and the compiled-in checksum', () async {
+  test('installRootfs asks Android to unpack the bundled image', () async {
     messenger.setMockMethodCallHandler(channel, (call) async {
       expect(call.method, 'installRootfs');
-      expect(call.arguments, {'url': 'https://example.test/x.tar.gz', 'sha256': 'abc'});
       return {'ok': true, 'path': '/data/runtime/debian'};
     });
-    final r = await RuntimeChannel().installRootfs(
-      url: 'https://example.test/x.tar.gz',
-      sha256: 'abc',
-    );
+    final r = await RuntimeChannel().installRootfs();
     expect(r.ok, isTrue);
+  });
+
+  test('progress from Android reaches onProgress', () async {
+    messenger.setMockMethodCallHandler(channel, (_) async => null);
+    final rc = RuntimeChannel();
+    String? stage;
+    double? fraction;
+    rc.onProgress = (s, f) {
+      stage = s;
+      fraction = f;
+    };
+    await messenger.handlePlatformMessage(
+      channel.name,
+      const StandardMethodCodec().encodeMethodCall(
+        const MethodCall('progress', {'stage': 'Unpacking the Linux image', 'fraction': 0.5}),
+      ),
+      (_) {},
+    );
+    expect(stage, 'Unpacking the Linux image');
+    expect(fraction, 0.5);
   });
 
   test('installRootfs shows the reason when the checksum fails', () async {
@@ -71,7 +87,7 @@ void main() {
           'ok': false,
           'error': "The Linux image didn't pass the safety check",
         });
-    final r = await RuntimeChannel().installRootfs(url: 'u', sha256: 'x');
+    final r = await RuntimeChannel().installRootfs();
     expect(r.ok, isFalse);
     expect(r.error, contains('safety check'));
   });

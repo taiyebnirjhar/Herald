@@ -8,8 +8,8 @@ import java.util.concurrent.TimeUnit
 /**
  * Runs proot (WBS 1.2): the program that gives Hermes a Linux userspace.
  * The binaries come from the app's native library folder (runtime/proot/).
- * The Linux base system (WBS 1.3) is installed under filesDir/runtime/ and
- * runs as proot's guest root.
+ * The Linux base system (WBS 1.3) is downloaded once and unpacked under
+ * filesDir/runtime/ as proot's guest root.
  */
 class ProotRuntime(private val context: Context) {
 
@@ -36,12 +36,36 @@ class ProotRuntime(private val context: Context) {
     /** `proot --version`: the exit code and everything it printed. */
     fun version(): Map<String, Any?> = run(null, "--version")
 
-    /** Installs the Linux base system from [url], checked against [sha256]. Blocks; call off the main thread. */
-    fun installRootfs(url: String, sha256: String): Map<String, Any?> = try {
-        RootfsInstaller(rootfsDir).install(url, sha256, File(context.cacheDir, "rootfs-download")) {}
+    /**
+     * Downloads the Linux base system once, checks it, and unpacks it.
+     * [progress] reports each stage. Blocks; call off the main thread.
+     */
+    fun installRootfs(progress: RootfsInstaller.Progress): Map<String, Any?> = try {
+        val cache = File(context.cacheDir, "rootfs-download").apply { mkdirs() }
+        val part = File(cache, "rootfs.tar.gz.part")
+        part.delete()
+        obtainImage(part, progress)
+        RootfsInstaller.verifyAndExtract(part, RuntimeImage.SHA256, rootfsDir, progress)
+        part.delete()
         mapOf("ok" to true, "path" to rootfsDir.path)
     } catch (e: IOException) {
         mapOf("ok" to false, "error" to (e.message ?: "The install failed"))
+    }
+
+    private fun obtainImage(part: File, progress: RootfsInstaller.Progress) {
+        download(RuntimeImage.URL, part) { f -> progress("Downloading the Linux image", f) }
+    }
+
+    private fun download(url: String, to: File, onFraction: (Double) -> Unit) {
+        val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 15_000
+        conn.readTimeout = 60_000
+        try {
+            if (conn.responseCode != 200) throw IOException("The Linux image download failed (answered ${conn.responseCode})")
+            conn.inputStream.use { input -> RootfsInstaller.copy(input, to, conn.contentLengthLong, onFraction) }
+        } finally {
+            conn.disconnect()
+        }
     }
 
     /** Runs `/usr/bin/uname -a` inside the Linux base system. Blocks; call off the main thread. */
