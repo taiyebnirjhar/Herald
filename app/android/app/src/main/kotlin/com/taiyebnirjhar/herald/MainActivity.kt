@@ -8,6 +8,7 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         UpdateChannel(applicationContext).register(flutterEngine)
         BatteryChannel(applicationContext).register(flutterEngine)
+        EngineChannel(applicationContext).register(flutterEngine)
         val runtime = ProotRuntime(applicationContext)
         RuntimeChannel(
             runtime = runtime,
