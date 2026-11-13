@@ -125,6 +125,8 @@ void main() {
   });
 
   phoneTest('the licences entry opens the licences page', (tester) async {
+    // Taller screen: the Settings list has more sections now, and the entry is at the bottom.
+    tester.view.physicalSize = const Size(412, 2400);
     await _openSettings(tester, store: FakeKeyValueStore());
 
     await tester.tap(find.text('Open-source licences'));
