@@ -52,9 +52,9 @@ class HermesSupervisorTest {
 
     @Test
     fun theGatewayListensOnLoopbackOnlyAndNeedsTheKey() {
-        val command = HermesSupervisor.gatewayCommand("k".repeat(48))
+        val command = HermesSupervisor.gatewayCommand("k".repeat(48), 31337)
         assertTrue(command.contains("API_SERVER_HOST=127.0.0.1"))
-        assertTrue(command.contains("API_SERVER_PORT=8642"))
+        assertTrue(command.contains("API_SERVER_PORT=31337"))
         assertTrue(command.contains("API_SERVER_KEY=" + "k".repeat(48)))
         assertFalse(command.any { it.contains("0.0.0.0") })
         assertTrue(command.takeLast(3) == listOf("/usr/local/bin/hermes", "gateway", "run"))
@@ -62,7 +62,7 @@ class HermesSupervisorTest {
 
     @Test
     fun theGatewayRunsWithACleanEnvironment() {
-        val command = HermesSupervisor.gatewayCommand("k".repeat(48))
+        val command = HermesSupervisor.gatewayCommand("k".repeat(48), 31337)
         assertEquals("/usr/bin/env", command[0])
         assertEquals("-i", command[1])
     }

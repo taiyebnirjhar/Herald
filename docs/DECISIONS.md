@@ -105,3 +105,12 @@ Each entry: date, decision, reason. Plan-level decisions D1–D7 are in PLAN.md 
   "ended unclearly", not as a failure.
 - Android 13 and later: Herald targets SDK 28 (D2), so Android shows no permission question for notifications.
   The owner must turn notifications on for Herald in Android settings, or nothing is shown.
+## Connection to Hermes's API: random port, key only when confirmed (security review)
+
+- **Why:** the security review found that the app sent the Hermes key to whatever answered on a fixed port (8642). If Hermes was stopped, another app could answer there and receive the next message's key.
+- **Random port per install:** the API server now listens on a port chosen once per install (20000 to 59999), stored with the key in the app's private folder.
+- **Key only when confirmed:** the app gets the key only while the supervisor has seen Hermes answer on that port. Otherwise the key is empty, and the chat and jobs screens send nothing.
+- **Chat re-reads the address before each message**, so a stopped Hermes never receives the key.
+- **Remaining risk:** another app could still bind the random port in the short window after Hermes stops, before the supervisor notices. The window is short and the port is random. A stronger fix would need a socket only this app can reach, which Hermes's API server does not offer today.
+- **Also fixed in the same change:** a provider key or model starting with a dash is refused (Hermes would read it as an option); a Hermes error during a reply is shown as an error instead of an empty bubble; the key store is synchronised so two threads cannot create two keys.
+- **Not yet fixed:** keep the Hermes key out of the agent's own commands. This needs a patch to Hermes's scrub list under `runtime/patches/`.

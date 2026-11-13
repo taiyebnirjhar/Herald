@@ -26,8 +26,10 @@ object ProviderSetup {
     /** A plain message for the player when the input is not usable; null when it is fine. */
     fun problem(provider: Provider?, key: String, model: String): String? = when {
         provider == null -> "Pick a provider first."
-        key.length < MIN_KEY_LENGTH || key.any { it.isWhitespace() } -> "That key doesn't look right. Paste it again."
-        model.isBlank() || model.any { it.isWhitespace() } -> "Type the model name, with no spaces."
+        key.length < MIN_KEY_LENGTH || key.any { it.isWhitespace() } || key.startsWith("-") ->
+            "That key doesn't look right. Paste it again."
+        model.isBlank() || model.any { it.isWhitespace() } || model.startsWith("-") ->
+            "Type the model name, with no spaces and no leading dash."
         else -> null
     }
 

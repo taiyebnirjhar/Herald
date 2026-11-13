@@ -20,4 +20,13 @@ class ApiKeyTest {
     fun twoGeneratedKeysAreDifferent() {
         assertNotEquals(ApiKey.generate(SecureRandom()), ApiKey.generate(SecureRandom()))
     }
+
+    @Test
+    fun aRandomPortIsInTheHeraldRange() {
+        val random = SecureRandom()
+        repeat(200) {
+            val port = ApiKey.randomPort(random)
+            assertTrue(port in 20_000..59_999)
+        }
+    }
 }
