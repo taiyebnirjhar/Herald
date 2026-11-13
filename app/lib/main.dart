@@ -1,7 +1,27 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(const HeraldApp());
+import 'update/app_installer.dart';
+import 'update/update_controller.dart';
+import 'update/update_service.dart';
+import 'update/update_status_card.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final installer = MethodChannelAppInstaller();
+  final updates = UpdateController(
+    service: UpdateService(
+      downloadsDir: () async {
+        // Inside the app's cache folder, where the FileProvider shares from.
+        final dir = Directory('${await installer.cacheDir()}/updates');
+        await dir.create(recursive: true);
+        return dir;
+      },
+    ),
+    installer: installer,
+  );
+  runApp(HeraldApp(updates: updates));
 }
 
 /// Palette taken from the light, glassy chat-bot UI reference (lavender + lime).
@@ -16,7 +36,9 @@ class HeraldColors {
 }
 
 class HeraldApp extends StatelessWidget {
-  const HeraldApp({super.key});
+  const HeraldApp({super.key, required this.updates});
+
+  final UpdateController updates;
 
   @override
   Widget build(BuildContext context) {
@@ -31,13 +53,30 @@ class HeraldApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: Colors.white,
       ),
-      home: const HelloPage(),
+      home: HelloPage(updates: updates),
     );
   }
 }
 
-class HelloPage extends StatelessWidget {
-  const HelloPage({super.key});
+class HelloPage extends StatefulWidget {
+  const HelloPage({super.key, required this.updates});
+
+  final UpdateController updates;
+
+  @override
+  State<HelloPage> createState() => _HelloPageState();
+}
+
+class _HelloPageState extends State<HelloPage> {
+  @override
+  void initState() {
+    super.initState();
+    // Quietly look for a newer version once the first screen is up.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await widget.updates.init();
+      await widget.updates.checkForUpdate();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +126,11 @@ class HelloPage extends StatelessWidget {
                       ),
                       const Spacer(),
                       const SizedBox(height: 24),
-                      const _StatusCard(),
+                      ListenableBuilder(
+                        listenable: widget.updates,
+                        builder: (context, _) =>
+                            UpdateStatusCard(controller: widget.updates),
+                      ),
                       const SizedBox(height: 16),
                       const _BottomBar(),
                       const SizedBox(height: 16),
@@ -184,62 +227,6 @@ class _Orb extends StatelessWidget {
             color: HeraldColors.accent.withValues(alpha: 0.25),
             blurRadius: 40,
             offset: const Offset(0, 16),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusCard extends StatelessWidget {
-  const _StatusCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: HeraldColors.card,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Phase 0 · Hello build',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: HeraldColors.ink,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'This APK came from GitHub Actions and installed on your phone.',
-            style: TextStyle(fontSize: 14, height: 1.4, color: HeraldColors.muted),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: HeraldColors.accent,
-                foregroundColor: Colors.white,
-                shape: const StadiumBorder(),
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Hello from Herald. The app runs.'),
-                ),
-              ),
-              child: const Text('Continue'),
-            ),
           ),
         ],
       ),

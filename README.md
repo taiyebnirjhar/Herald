@@ -19,7 +19,9 @@ You install from GitHub Releases. You do not need a computer.
 4. When Android asks, allow your browser to **install unknown apps** (one time only).
 5. Tap **Install**, then **Open**.
 
-To update later, repeat steps 2–5. The new version installs over the old one and keeps your data.
+**Updates:** from version 0.1.1 on, Herald checks for updates itself. Open Herald, then tap
+**Update now** on the card. Android asks once to allow Herald to install apps: turn on
+"Allow from this source", come back, and tap the button again. Your data stays.
 
 ## Repo layout
 
@@ -39,6 +41,7 @@ To update later, repeat steps 2–5. The new version installs over the old one a
 - To publish a release: on GitHub open **Actions → App (APK) → Run workflow**, choose the branch, type the tag
   (for example `v0.1.0`) in **release_tag**, and run it. The workflow creates the tag and the GitHub Release with the signed APK.
 - Pushing a tag like `v0.1.0` also publishes a release.
+- The app finds new releases on GitHub itself (the newest release that has an APK). Its download is checked against the SHA-256 that GitHub publishes for that APK before Android installs it.
 
 ## Signing key (one-time setup, required for any release)
 
