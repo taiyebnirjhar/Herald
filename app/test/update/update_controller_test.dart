@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:herald/update/app_installer.dart';
 import 'package:herald/update/update_controller.dart';
 import 'package:herald/update/update_service.dart';
+import '../downloads/fake_downloader.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -64,7 +65,11 @@ void main() {
     required FakeInstaller installer,
   }) =>
       UpdateController(
-        service: UpdateService(client: client, downloadsDir: () async => dir),
+        service: UpdateService(
+          client: client,
+          downloader: FakeDownloader(dir: dir, bytes: _apk),
+          downloadsDir: () async => dir,
+        ),
         installer: installer,
       );
 

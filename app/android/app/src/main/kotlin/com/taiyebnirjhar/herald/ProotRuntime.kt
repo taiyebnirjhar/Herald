@@ -2,14 +2,14 @@ package com.taiyebnirjhar.herald
 
 import android.content.Context
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * Runs proot (WBS 1.2): the program that will give Hermes a Linux
- * userspace. The binaries come from the app's native library folder
- * (runtime/proot/, see its README), which Android lets the app run.
- *
- * Spike only for now: it runs `proot --version` and reports what happened.
+ * Runs proot (WBS 1.2): the program that gives Hermes a Linux userspace.
+ * The binaries come from the app's native library folder (runtime/proot/).
+ * The Linux base system (WBS 1.3) is downloaded in the background, then
+ * unpacked under filesDir/runtime/ as proot's guest root.
  */
 class ProotRuntime(private val context: Context) {
 
@@ -17,6 +17,9 @@ class ProotRuntime(private val context: Context) {
     private val proot: File = File(libDir, "libproot.so")
     private val loader: File = File(libDir, "libproot_loader.so")
     private val tmpDir: File = File(context.cacheDir, "proot-tmp").apply { mkdirs() }
+
+    /** The Linux base system: its guest root (what `/` is inside it). */
+    val rootfsDir: File = File(context.filesDir, "runtime/$ROOTFS_NAME")
 
     /** Facts about the installed pieces, for the debug screen. */
     fun describe(): Map<String, Any> = mapOf(
@@ -26,15 +29,75 @@ class ProotRuntime(private val context: Context) {
         "prootSize" to proot.length(),
         "loaderExists" to loader.isFile,
         "tmpDir" to tmpDir.path,
+        "linuxInstalled" to File(rootfsDir, "usr/bin/uname").exists(),
+        "linuxDir" to rootfsDir.path,
     )
 
     /** `proot --version`: the exit code and everything it printed. */
-    fun version(): Map<String, Any?> {
+    fun version(): Map<String, Any?> = run(null, "--version")
+
+    /**
+     * Unpacks the downloaded Linux base system at [archive], after checking it.
+     * [progress] reports each stage. Blocks; call off the main thread.
+     */
+    fun installRootfs(archive: File, progress: RootfsInstaller.Progress): Map<String, Any?> = try {
+        RootfsInstaller.verifyAndExtract(archive, RuntimeImage.SHA256, rootfsDir, progress)
+        archive.delete()
+        mapOf("ok" to true, "path" to rootfsDir.path)
+    } catch (e: IOException) {
+        mapOf("ok" to false, "error" to (e.message ?: "The install failed"))
+    }
+
+    /** Runs `/usr/bin/uname -a` inside the Linux base system. Blocks; call off the main thread. */
+    fun uname(): Map<String, Any?> {
+        if (!File(rootfsDir, "usr/bin/uname").exists()) {
+            return mapOf("ok" to false, "error" to "The Linux base system is not installed yet.")
+        }
+        return run(rootfsDir, "/usr/bin/uname", "-a")
+    }
+
+    /**
+     * Runs [command] inside the Linux base. [fakeRoot] lets it act as root (for
+     * apt and the Hermes installer). Output goes to [logTo] when given. Long
+     * runs are fine: this waits for the process to finish. Call off the main thread.
+     */
+    fun runInGuest(command: List<String>, fakeRoot: Boolean, logTo: File?): Map<String, Any?> {
         if (!proot.isFile) {
             return mapOf("ok" to false, "error" to "libproot.so is missing from the app: ${proot.path}")
         }
+        val args = mutableListOf(proot.path)
+        if (fakeRoot) args += "-0"
+        args += listOf("-r", rootfsDir.path, "-w", "/", "-b", "/proc", "-b", "/dev")
+        args += command
         return try {
-            val process = ProcessBuilder(proot.path, "--version")
+            val builder = ProcessBuilder(args).redirectErrorStream(true)
+            builder.environment()["PROOT_LOADER"] = loader.path
+            builder.environment()["PROOT_TMP_DIR"] = tmpDir.path
+            if (logTo != null) builder.redirectOutput(ProcessBuilder.Redirect.appendTo(logTo))
+            val process = builder.start()
+            val output = if (logTo == null) process.inputStream.bufferedReader().readText().trim() else ""
+            val code = process.waitFor()
+            mapOf(
+                "ok" to (code == 0),
+                "exitCode" to code,
+                "output" to output,
+                "error" to if (code == 0) null else "The command stopped with exit code $code",
+            )
+        } catch (e: Exception) {
+            mapOf("ok" to false, "error" to "${e.javaClass.simpleName}: ${e.message}")
+        }
+    }
+
+    /** Runs proot with [rootfs] as the guest root (or none, for `--version`). */
+    private fun run(rootfs: File?, vararg command: String): Map<String, Any?> {
+        if (!proot.isFile) {
+            return mapOf("ok" to false, "error" to "libproot.so is missing from the app: ${proot.path}")
+        }
+        val args = mutableListOf(proot.path)
+        if (rootfs != null) args += listOf("-r", rootfs.path, "-w", "/")
+        args += command
+        return try {
+            val process = ProcessBuilder(args)
                 .redirectErrorStream(true)
                 .apply {
                     environment()["PROOT_LOADER"] = loader.path
@@ -42,10 +105,10 @@ class ProotRuntime(private val context: Context) {
                 }
                 .start()
             val output = process.inputStream.bufferedReader().readText().trim()
-            val finished = process.waitFor(10, TimeUnit.SECONDS)
+            val finished = process.waitFor(20, TimeUnit.SECONDS)
             if (!finished) {
                 process.destroyForcibly()
-                return mapOf("ok" to false, "error" to "proot did not answer within 10 seconds", "output" to output)
+                return mapOf("ok" to false, "error" to "proot did not answer within 20 seconds", "output" to output)
             }
             mapOf(
                 "ok" to (process.exitValue() == 0),
@@ -56,5 +119,9 @@ class ProotRuntime(private val context: Context) {
             // Typical here: the loader cannot start the program on this phone.
             mapOf("ok" to false, "error" to "${e.javaClass.simpleName}: ${e.message}")
         }
+    }
+
+    companion object {
+        const val ROOTFS_NAME = "debian-trixie-arm64"
     }
 }

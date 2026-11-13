@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:herald/update/app_update.dart';
+import '../downloads/fake_downloader.dart';
 import 'package:herald/update/update_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -49,8 +50,12 @@ void main() {
     if (dir.existsSync()) dir.deleteSync(recursive: true);
   });
 
-  UpdateService serviceWith(http.Client client) =>
-      UpdateService(client: client, downloadsDir: () async => dir);
+  UpdateService serviceWith(http.Client client, {FakeDownloader? downloader}) =>
+      UpdateService(
+        client: client,
+        downloader: downloader ?? FakeDownloader(dir: dir, bytes: _apkBytes),
+        downloadsDir: () async => dir,
+      );
 
   group('latestRelease', () {
     test('reads the newest tag from the release page redirect', () async {
@@ -91,63 +96,74 @@ void main() {
   });
 
   group('download', () {
-    test('downloads the APK, checks it against its checksum and keeps it', () async {
-      final service = serviceWith(MockClient((r) async => _github()(r)));
-      final update = AppUpdate.fromTag(owner: 'taiyebnirjhar', repo: 'Herald', tag: 'v0.1.3')!;
+    final update = AppUpdate.fromTag(owner: 'taiyebnirjhar', repo: 'Herald', tag: 'v0.1.3')!;
+
+    test('downloads in the background, checks the checksum and keeps the APK', () async {
+      final downloader = FakeDownloader(dir: dir, bytes: _apkBytes);
+      final service = serviceWith(MockClient((r) async => _github()(r)), downloader: downloader);
       final progress = <double>[];
       final file = await service.download(update, onProgress: progress.add);
 
+      expect(downloader.started, ['herald-0.1.3.apk']);
       expect(file.path, endsWith('herald-0.1.3.apk'));
       expect(await file.readAsBytes(), _apkBytes);
       expect(progress.last, 1.0);
     });
 
     test('a file that fails the checksum is deleted and not kept', () async {
-      final service = serviceWith(MockClient((r) async => _github(
-            apk: utf8.encode('x' * _apkBytes.length),
-          )(r)));
-      final update = AppUpdate.fromTag(owner: 'taiyebnirjhar', repo: 'Herald', tag: 'v0.1.3')!;
-
+      final service = serviceWith(
+        MockClient((r) async => _github()(r)),
+        downloader: FakeDownloader(dir: dir, bytes: utf8.encode('x' * _apkBytes.length)),
+      );
       await expectLater(
         service.download(update),
         throwsA(isA<UpdateException>().having(
             (e) => e.message, 'message', contains("didn't pass the safety check"))),
       );
-      expect(dir.listSync(), isEmpty);
+      expect(File('${dir.path}/herald-0.1.3.apk').existsSync(), isFalse);
+    });
+
+    test('a short download is refused by the checksum', () async {
+      final service = serviceWith(
+        MockClient((r) async => _github()(r)),
+        downloader: FakeDownloader(dir: dir, bytes: _apkBytes.sublist(0, 5)),
+      );
+      await expectLater(
+        service.download(update),
+        throwsA(isA<UpdateException>().having(
+            (e) => e.message, 'message', contains("didn't pass the safety check"))),
+      );
+    });
+
+    test('a failed background download says why', () async {
+      final service = serviceWith(
+        MockClient((r) async => _github()(r)),
+        downloader: FakeDownloader(dir: dir, failWith: 'Download failed (code 499)'),
+      );
+      await expectLater(
+        service.download(update),
+        throwsA(isA<UpdateException>()
+            .having((e) => e.message, 'message', contains('code 499'))),
+      );
     });
 
     test('a release with no checksum file is refused before any download', () async {
-      final service = serviceWith(MockClient((r) async => _github(shaStatus: 404)(r)));
-      final update = AppUpdate.fromTag(owner: 'taiyebnirjhar', repo: 'Herald', tag: 'v0.1.3')!;
-
+      final downloader = FakeDownloader(dir: dir, bytes: _apkBytes);
+      final service = serviceWith(
+        MockClient((r) async => _github(shaStatus: 404)(r)),
+        downloader: downloader,
+      );
       await expectLater(
         service.download(update),
         throwsA(isA<UpdateException>().having(
             (e) => e.message, 'message', contains('no checksum file'))),
       );
-      expect(dir.listSync(), isEmpty);
-    });
-
-    test('a short download is refused by the checksum', () async {
-      // A cut-off file never matches the published hash, however the
-      // connection ended.
-      final service = serviceWith(MockClient((r) async => _github(
-            apk: _apkBytes.sublist(0, 5),
-          )(r)));
-      final update = AppUpdate.fromTag(owner: 'taiyebnirjhar', repo: 'Herald', tag: 'v0.1.3')!;
-
-      await expectLater(
-        service.download(update),
-        throwsA(isA<UpdateException>().having(
-            (e) => e.message, 'message', contains("didn't pass the safety check"))),
-      );
-      expect(dir.listSync(), isEmpty);
+      expect(downloader.started, isEmpty);
     });
 
     test('older downloads are removed when a newer one is fetched', () async {
       File('${dir.path}/herald-0.1.0.apk').writeAsStringSync('old');
       final service = serviceWith(MockClient((r) async => _github()(r)));
-      final update = AppUpdate.fromTag(owner: 'taiyebnirjhar', repo: 'Herald', tag: 'v0.1.3')!;
       await service.download(update);
 
       expect(File('${dir.path}/herald-0.1.0.apk').existsSync(), isFalse);

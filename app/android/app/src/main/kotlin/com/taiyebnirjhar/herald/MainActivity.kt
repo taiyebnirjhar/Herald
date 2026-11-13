@@ -7,6 +7,12 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         UpdateChannel(applicationContext).register(flutterEngine)
-        RuntimeChannel(ProotRuntime(applicationContext)).register(flutterEngine)
+        val runtime = ProotRuntime(applicationContext)
+        RuntimeChannel(
+            runtime = runtime,
+            hermes = HermesInstaller(applicationContext, runtime),
+            downloads = BackgroundDownloads(applicationContext),
+            service = { script -> HermesService.start(applicationContext, script) },
+        ).register(flutterEngine)
     }
 }

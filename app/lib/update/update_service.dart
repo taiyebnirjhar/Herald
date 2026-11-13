@@ -4,32 +4,35 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
+import '../downloads/background_downloader.dart';
 import 'app_update.dart';
+import 'update_exception.dart';
 
-/// A problem the player can read on screen.
-class UpdateException implements Exception {
-  const UpdateException(this.message);
-  final String message;
-  @override
-  String toString() => message;
-}
+export 'update_exception.dart';
 
 /// Finds the newest Herald release and downloads its APK.
 ///
-/// Uses only github.com pages (not the API), so there is no per-address limit.
+/// The version comes from github.com pages (not the API), so there is no
+/// per-address limit. The APK downloads in the background, through the same
+/// downloader as every other download in the app.
 class UpdateService {
   UpdateService({
     http.Client? client,
+    BackgroundDownloader? downloader,
     this.owner = 'taiyebnirjhar',
     this.repo = 'Herald',
     required this.downloadsDir,
-  }) : _client = client ?? http.Client();
+  })  : _client = client ?? http.Client(),
+        downloader = downloader ?? MethodChannelDownloader();
 
   final http.Client _client;
   final String owner;
   final String repo;
 
-  /// Where APKs are kept. Must be inside the app's cache folder, which is
+  /// Downloads in the background (Android's download manager).
+  final BackgroundDownloader downloader;
+
+  /// Where verified APKs are kept. Inside the app's cache folder, which is
   /// the folder the FileProvider shares with Android's installer.
   final Future<Directory> Function() downloadsDir;
 
@@ -66,9 +69,9 @@ class UpdateService {
     );
   }
 
-  /// Downloads [update] into the downloads folder, reporting progress from
-  /// 0.0 to 1.0. The file must match the SHA-256 in its `.sha256` file; a file
-  /// that doesn't match is deleted and an [UpdateException] is thrown.
+  /// Downloads [update] in the background, reporting progress from 0.0 to 1.0.
+  /// The file must match the SHA-256 in its `.sha256` file; a file that doesn't
+  /// match is deleted and an [UpdateException] is thrown.
   Future<File> download(
     AppUpdate update, {
     void Function(double fraction)? onProgress,
@@ -77,61 +80,29 @@ class UpdateService {
     await _clearOldDownloads(dir, keep: update.version);
     final expected = await _expectedSha256(update);
 
-    final file = File('${dir.path}/herald-${update.version}.apk');
-    final partial = File('${file.path}.part');
-    if (await partial.exists()) await partial.delete();
+    final name = 'herald-${update.version}.apk';
+    await downloader.start(
+      url: update.apkUrl,
+      name: name,
+      title: 'Herald ${update.version}',
+    );
+    final source = await downloader.waitFor(
+      name,
+      onProgress: (s) => onProgress?.call(s.fraction),
+    );
 
-    final http.StreamedResponse response;
-    try {
-      response = await _client
-          .send(http.Request('GET', Uri.parse(update.apkUrl)))
-          .timeout(const Duration(seconds: 30));
-    } catch (_) {
-      throw const UpdateException(
-        "The download didn't start. Check the connection and try again.",
-      );
-    }
-    if (response.statusCode != 200) {
-      throw UpdateException(
-        'The download failed (GitHub answered ${response.statusCode}).',
-      );
-    }
+    final file = File('${dir.path}/$name');
+    if (await file.exists()) await file.delete();
+    await File(source).copy(file.path);
+    await File(source).delete();
 
-    final total = response.contentLength ?? -1;
-    var received = 0;
-    final sink = partial.openWrite();
-    try {
-      await for (final chunk in response.stream) {
-        sink.add(chunk);
-        received += chunk.length;
-        if (total > 0) {
-          onProgress?.call((received / total).clamp(0.0, 1.0));
-        }
-      }
-    } catch (_) {
-      await sink.close();
-      await partial.delete();
-      throw const UpdateException(
-        'The download stopped. Check the connection and try again.',
-      );
-    }
-    await sink.close();
-
-    if (total > 0 && received != total) {
-      await partial.delete();
-      throw const UpdateException('The download was incomplete. Try again.');
-    }
-
-    final digest = await sha256.bind(partial.openRead()).first;
+    final digest = await sha256.bind(file.openRead()).first;
     if (digest.toString() != expected) {
-      await partial.delete();
+      await file.delete();
       throw const UpdateException(
         "The file didn't pass the safety check, so it was not installed. Try again.",
       );
     }
-
-    if (await file.exists()) await file.delete();
-    await partial.rename(file.path);
     onProgress?.call(1.0);
     return file;
   }

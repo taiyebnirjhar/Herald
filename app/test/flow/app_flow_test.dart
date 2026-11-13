@@ -48,7 +48,7 @@ void main() {
     messenger.setMockMethodCallHandler(runtimeChannel, null);
   });
 
-  testWidgets('start, check for updates, open the runtime check, run it, go back',
+  testWidgets('start, check for updates, open setup, go back',
       (tester) async {
     final updates = UpdateController(
       service: UpdateService(
@@ -79,15 +79,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('You have the newest version.'), findsOneWidget);
 
-    // Menu opens the runtime check; it shows what the app has.
+    // Menu opens the setup screen with its steps.
     await tester.tap(find.byIcon(Icons.menu_rounded));
     await tester.pumpAndSettle();
-    expect(find.text('Runtime check (debug)'), findsOneWidget);
-    expect(find.textContaining('prootExists: true'), findsOneWidget);
-
-    await tester.tap(find.text('Run proot --version'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('OK (exit code 0)'), findsOneWidget);
+    expect(find.text('Set up Herald'), findsOneWidget);
+    expect(find.text('1. Linux base'), findsOneWidget);
+    expect(find.text('2. Hermes Agent'), findsOneWidget);
 
     // Back to the first screen.
     await tester.pageBack();

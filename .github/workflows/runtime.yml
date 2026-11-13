@@ -1,0 +1,106 @@
+name: Runtime (Debian rootfs)
+
+# Phase 1.3: builds the Debian trixie arm64 base system the app runs Linux in.
+# Output: debian-trixie-arm64.tar.gz + .sha256, published to a release tag
+# (runtime-v*) that the app downloads and checks against a hash it has compiled in.
+
+on:
+  push:
+    branches: [feat/1.3-debian-rootfs]
+    paths: ["runtime/**", ".github/workflows/runtime.yml"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to publish, e.g. runtime-v0.0.1 (empty = build only)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Debian base (arm64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install debootstrap and arm64 emulation
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          sudo apt-get install -y -q debootstrap qemu-user-static binfmt-support binutils
+
+      - name: Build the Debian trixie arm64 base system
+        run: |
+          set -euo pipefail
+          sudo debootstrap --arch=arm64 --variant=minbase --include=ca-certificates \
+            trixie rootfs http://deb.debian.org/debian
+
+      - name: Clean up and check it is arm64
+        run: |
+          set -euo pipefail
+          # The image must not carry the host's emulator or the installer's working files.
+          sudo rm -rf rootfs/usr/bin/qemu-aarch64-static rootfs/debootstrap
+          sudo rm -rf rootfs/var/cache/apt/archives/*.deb rootfs/var/cache/apt/*.bin rootfs/var/lib/apt/lists/*
+          sudo rm -rf rootfs/proc/* rootfs/sys/* rootfs/dev/* 2>/dev/null || true
+          readelf -h rootfs/usr/bin/uname | grep -q "AArch64" \
+            || { echo "::error::uname in the image is not arm64"; exit 1; }
+          sudo du -sh rootfs
+
+      - name: Pack and hash
+        run: |
+          set -euo pipefail
+          sudo tar --numeric-owner -C rootfs -czf debian-trixie-arm64.tar.gz .
+          sha256sum debian-trixie-arm64.tar.gz > debian-trixie-arm64.tar.gz.sha256
+          ls -lh debian-trixie-arm64.tar.gz*
+          cat debian-trixie-arm64.tar.gz.sha256
+
+      - name: Upload image
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-trixie-arm64
+          path: |
+            debian-trixie-arm64.tar.gz
+            debian-trixie-arm64.tar.gz.sha256
+          retention-days: 14
+
+  publish:
+    name: Publish runtime release
+    needs: build
+    if: github.event_name == 'push' || inputs.release_tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out the release tag
+        id: tag
+        env:
+          MANUAL_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "$MANUAL_TAG" ]; then TAG="$MANUAL_TAG"; else TAG="$(cat runtime/RELEASE_TAG 2>/dev/null || true)"; fi
+          if [ -z "$TAG" ]; then echo "No release tag (runtime/RELEASE_TAG empty): build only."; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        if: steps.tag.outputs.tag != ''
+        with:
+          name: debian-trixie-arm64
+          path: release
+
+      - name: Create release with the image
+        if: steps.tag.outputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Runtime ${{ steps.tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          files: |
+            release/debian-trixie-arm64.tar.gz
+            release/debian-trixie-arm64.tar.gz.sha256
+          fail_on_unmatched_files: true
+          body: Debian trixie (arm64) base system for Herald's Linux runtime. Built by runtime.yml.

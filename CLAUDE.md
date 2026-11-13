@@ -15,6 +15,16 @@ The full plan and Work Breakdown Structure is in `PLAN.md`. Read it fully before
 - Put the WBS id after the prefix, e.g. `feat/0.1-0.6-hello-app`, `ci/1.1-proot-binaries`.
 - Never use `claude/*` or any tool-generated branch name. Branch from `main`, delete after merge.
 
+## 0c. Pull requests and main (owner rule)
+- **Always open a pull request** for every change. Never push commits straight to `main`.
+- Keep **`main` clean**: it only changes through reviewed, merged PRs. Each PR has one WBS id in its title, a short description, and the checks that were run.
+- The owner merges PRs. Do not merge them yourself.
+
+## 0d. Download progress (owner rule)
+- **Every download must show progress** in the app: a progress bar and a percentage (or bytes done of total) while it runs.
+- If the total size is unknown, show the bytes done and the current stage in plain words. Never leave a download with no visible progress.
+- This applies to every download, including downloads inside the Linux base (for example package installs), where progress is shown from the installer's own stages until byte-level progress is available. Record any gap in `docs/DECISIONS.md`.
+
 ## How to work
 - Work **phase by phase, in WBS order**. Use the WBS IDs (e.g. `1.4`) in branch names, commits and PR titles.
 - **Stop after Phase 1** (the spike) and write `docs/SPIKE_REPORT.md` with measurements and a GO / NO-GO

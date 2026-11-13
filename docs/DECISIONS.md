@@ -57,3 +57,19 @@ Each entry: date, decision, reason. Plan-level decisions D1–D7 are in PLAN.md 
 - **Not yet proven on a phone.** Phase 1.2 is the phone test: the debug screen runs `proot --version`.
   Under qemu there is no Android linker, so nothing was run here.
 
+## Update size: image downloaded once, not in every APK (decided 2026-11-13)
+
+- Release APKs are small (about 8 MB). The Linux base image (52 MB) is downloaded once, the first time the
+  player installs it, and reused until the runtime version changes.
+- The image's address and SHA-256 are compiled into the app (RuntimeImage.kt). The download is checked
+  before it is unpacked.
+- The earlier bundled approach (60 MB APKs) is dropped to keep updates small.
+
+
+## Download progress gap: downloads inside the Linux base (rule 0d)
+
+- Downloads the Hermes installer makes inside the Linux base (package installs, uv and Python) report
+  progress from the installer's own stages (its log lines), not from bytes. The setup screen shows the
+  latest stage line and the step.
+- Byte-level progress for these is not built yet. Planned: parse the installer's progress lines, or run the
+  package steps through a counted download. Owner to be told when this changes.

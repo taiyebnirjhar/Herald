@@ -52,4 +52,85 @@ void main() {
     final check = await RuntimeChannel().prootVersion();
     expect(check.ok, isFalse);
   });
+
+  test('installRootfs asks Android to unpack the bundled image', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'installRootfs');
+      expect(call.arguments, {'path': '/cache/linux.tar.gz'});
+      return {'ok': true, 'path': '/data/runtime/debian'};
+    });
+    final r = await RuntimeChannel().installRootfs(path: '/cache/linux.tar.gz');
+    expect(r.ok, isTrue);
+  });
+
+  test('progress from Android reaches onProgress', () async {
+    messenger.setMockMethodCallHandler(channel, (_) async => null);
+    final rc = RuntimeChannel();
+    String? stage;
+    double? fraction;
+    rc.onProgress = (s, f) {
+      stage = s;
+      fraction = f;
+    };
+    await messenger.handlePlatformMessage(
+      channel.name,
+      const StandardMethodCodec().encodeMethodCall(
+        const MethodCall('progress', {'stage': 'Unpacking the Linux image', 'fraction': 0.5}),
+      ),
+      (_) {},
+    );
+    expect(stage, 'Unpacking the Linux image');
+    expect(fraction, 0.5);
+  });
+
+  test('installRootfs shows the reason when the checksum fails', () async {
+    messenger.setMockMethodCallHandler(channel, (_) async => {
+          'ok': false,
+          'error': "The Linux image didn't pass the safety check",
+        });
+    final r = await RuntimeChannel().installRootfs(path: 'x');
+    expect(r.ok, isFalse);
+    expect(r.error, contains('safety check'));
+  });
+
+  test('runUname reads the output', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'runUname');
+      return {'ok': true, 'exitCode': 0, 'output': 'Linux herald 6.1 aarch64 GNU/Linux'};
+    });
+    final r = await RuntimeChannel().runUname();
+    expect(r.output, contains('aarch64'));
+  });
+
+  test('hermesStatus reads running and the log', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'hermesStatus');
+      return {'running': true, 'log': 'step 3 of 9'};
+    });
+    final status = await RuntimeChannel().hermesStatus();
+    expect(status.running, isTrue);
+    expect(status.log, 'step 3 of 9');
+    expect(status.result, isNull);
+  });
+
+  test('hermesStatus carries the result when the install is done', () async {
+    messenger.setMockMethodCallHandler(channel, (_) async => {
+          'running': false,
+          'log': 'done',
+          'result': {'ok': true, 'output': 'Hermes Agent v2026.9.24'},
+        });
+    final status = await RuntimeChannel().hermesStatus();
+    expect(status.running, isFalse);
+    expect(status.result?.ok, isTrue);
+    expect(status.result?.output, contains('v2026.9.24'));
+  });
+
+  test('hermesInstall starts it with the downloaded script', () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'hermesInstall');
+      expect(call.arguments, {'script': '/files/hermes-install.sh'});
+      return {'started': true};
+    });
+    await RuntimeChannel().hermesInstall(script: '/files/hermes-install.sh');
+  });
 }
