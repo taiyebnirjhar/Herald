@@ -35,7 +35,7 @@ jobs:
       - name: Build the Debian trixie arm64 base system
         run: |
           set -euo pipefail
-          sudo debootstrap --arch=arm64 --variant=minbase --include=ca-certificates \
+          sudo debootstrap --arch=arm64 --variant=minbase --include=ca-certificates,curl,git,xz-utils \
             trixie rootfs http://deb.debian.org/debian
 
       - name: Clean up and check it is arm64

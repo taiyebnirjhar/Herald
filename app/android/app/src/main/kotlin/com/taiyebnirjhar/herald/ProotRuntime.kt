@@ -29,12 +29,19 @@ class ProotRuntime(private val context: Context) {
         "prootSize" to proot.length(),
         "loaderExists" to loader.isFile,
         "tmpDir" to tmpDir.path,
-        "linuxInstalled" to File(rootfsDir, "usr/bin/uname").exists(),
+        "linuxInstalled" to isLinuxInstalled(),
         "linuxDir" to rootfsDir.path,
     )
 
     /** `proot --version`: the exit code and everything it printed. */
     fun version(): Map<String, Any?> = run(null, "--version")
+
+    /** The Linux base is installed and is the version this app expects. */
+    fun isLinuxInstalled(): Boolean =
+        File(rootfsDir, "usr/bin/uname").exists() &&
+            versionFile().takeIf { it.isFile }?.readText()?.trim() == RuntimeImage.VERSION
+
+    private fun versionFile(): File = File(context.filesDir, "runtime/linux-version")
 
     /**
      * Unpacks the downloaded Linux base system at [archive], after checking it.
@@ -42,6 +49,7 @@ class ProotRuntime(private val context: Context) {
      */
     fun installRootfs(archive: File, progress: RootfsInstaller.Progress): Map<String, Any?> = try {
         RootfsInstaller.verifyAndExtract(archive, RuntimeImage.SHA256, rootfsDir, progress)
+        versionFile().apply { parentFile?.mkdirs() }.writeText(RuntimeImage.VERSION)
         archive.delete()
         mapOf("ok" to true, "path" to rootfsDir.path)
     } catch (e: IOException) {
